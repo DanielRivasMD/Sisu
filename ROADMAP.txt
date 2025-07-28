@@ -1,0 +1,22 @@
+- important features:
+  - feedback / context
+  - micro-reviews
+  - day-off
+  - coach system
+
+- command structure:
+  - track
+  - update
+  - remove (default => last entry)
+  - stats
+  - graph
+  - streak
+  - config
+  - cal
+
+- tech stack:
+  - cobra / viper
+  - bubbletea
+  - sqlx
+  - go-cal
+  - julia - unicodeplots
