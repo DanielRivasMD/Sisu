@@ -21,6 +21,7 @@ package cmd
 import (
 	"strings"
 
+	"github.com/DanielRivasMD/horus"
 	"github.com/spf13/cobra"
 	"github.com/ttacon/chalk"
 )
@@ -31,6 +32,12 @@ var rootCmd = &cobra.Command{
 	Use:     "sisu",
 	Long:    helpRoot,
 	Example: exampleRoot,
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func Execute() {
+	horus.CheckErr(rootCmd.Execute())
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
