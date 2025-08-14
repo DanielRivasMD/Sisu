@@ -27,6 +27,8 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
+
+	"github.com/DanielRivasMD/Sisu/db"
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -37,12 +39,10 @@ var trackCmd = &cobra.Command{
 	Long:    helpTrack,
 	Example: exampleTrack,
 
+	PreRun: preRunTrack,
 	Run: runTrack,
+	PostRun: postRunTrack,
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-var ()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -65,16 +65,24 @@ var exampleTrack = formatExample(
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+func preRunTrack(cmd *cobra.Command, args []string) {
+	conn, err := db.InitDB(dbPath)
+	if err != nil {
+		fmt.Println("database initialization failed: %w", err)
+	}
+	_ = conn
+}
+
 func runTrack(cmd *cobra.Command, args []string) {
-	// 1) Retrieve the *sql.DB from Cobra's context
-	db := FromContext(cmd)
-	if db == nil {
-		fmt.Fprintf(os.Stderr, "database not initialized\n")
+	// 1) Grab the shared *sql.DB
+	conn := db.Conn
+	if conn == nil {
+		fmt.Fprintln(os.Stderr, "database not initialized")
 		os.Exit(1)
 	}
 
 	// 2) Select or create a task
-	taskID, err := promptSelectOrCreateTask(db)
+	taskID, err := promptSelectOrCreateTask(conn)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "task selection error: %v\n", err)
 		os.Exit(1)
@@ -88,7 +96,7 @@ func runTrack(cmd *cobra.Command, args []string) {
 	}
 
 	// 4) Insert into sessions
-	_, err = db.Exec(
+	_, err = conn.Exec(
 		`INSERT INTO sessions(task_id, date, duration_minutes, score, notes)
      VALUES (?, ?, ?, ?, ?)`,
 		taskID,
@@ -103,6 +111,15 @@ func runTrack(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Println("Session recorded!")
+}
+
+func postRunTrack(cmd *cobra.Command, args []string) {
+	if db.Conn != nil {
+		if err := db.Conn.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "error closing database: %v\n", err)
+		}
+		db.Conn = nil
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
