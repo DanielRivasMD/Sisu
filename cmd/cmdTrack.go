@@ -66,14 +66,12 @@ var exampleTrack = formatExample(
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func runTrack(cmd *cobra.Command, args []string) {
-	// 1) Open DB (you might load path from a global flag or config)
-	dbPath := "sisu.db"
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open DB: %v\n", err)
+	// 1) Retrieve the *sql.DB from Cobra's context
+	db := FromContext(cmd)
+	if db == nil {
+		fmt.Fprintf(os.Stderr, "database not initialized\n")
 		os.Exit(1)
 	}
-	defer db.Close()
 
 	// 2) Select or create a task
 	taskID, err := promptSelectOrCreateTask(db)
@@ -106,6 +104,8 @@ func runTrack(cmd *cobra.Command, args []string) {
 
 	fmt.Println("Session recorded!")
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // promptSelectOrCreateTask shows existing tasks, or lets you type a new one.
 func promptSelectOrCreateTask(db *sql.DB) (int64, error) {
