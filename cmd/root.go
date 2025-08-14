@@ -19,11 +19,17 @@ package cmd
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
 	"strings"
 
 	"github.com/DanielRivasMD/horus"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
 	"github.com/ttacon/chalk"
+
+	"github.com/DanielRivasMD/Sisu/db"
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +38,21 @@ var rootCmd = &cobra.Command{
 	Use:     "sisu",
 	Long:    helpRoot,
 	Example: exampleRoot,
+
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		var err error
+
+		// InitDB will run migrations under the hood
+		conn, err := db.InitDB(dbPath)
+		if err != nil {
+			fmt.Errorf("failed to open database %q: %w", dbPath, err)
+		}
+
+		// stash the *sql.DB in the Cobra context for child commands
+		ctx := context.WithValue(cmd.Context(), dbCtxKey, conn)
+		cmd.SetContext(ctx)
+
+	},
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -42,14 +63,24 @@ func Execute() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+const dbCtxKey = "db"
+
 var (
 	verbose bool
+)
+
+var (
+	dbPath string // populated by the --db flag
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose diagnostics")
+
+	rootCmd.PersistentFlags().
+		StringVar(&dbPath, "db", "sisu.db", "path to sqlite database")
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +150,17 @@ func formatExample(app string, usages ...[]string) string {
 	}
 
 	return b.String()
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// FromContext pulls the *sql.DB out of the Cobra command's context.
+// You can call this in any subcommand to get the open DB.
+func FromContext(cmd *cobra.Command) *sql.DB {
+	if db, ok := cmd.Context().Value(dbCtxKey).(*sql.DB); ok {
+		return db
+	}
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
