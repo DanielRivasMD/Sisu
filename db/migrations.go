@@ -18,66 +18,12 @@ package db
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-import (
-	"database/sql"
-)
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// migrations holds all DDL statements to initialize or update the schema.
-var migrations = []string{
-	`CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        description TEXT,
-        goal_hours REAL,
-        goal_days INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        archived BOOLEAN DEFAULT FALSE
-    );`,
-	`CREATE TABLE IF NOT EXISTS sessions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        task_id INTEGER NOT NULL,
-        date DATE NOT NULL,
-        duration_minutes INTEGER,
-        score INTEGER,
-        notes TEXT,
-        FOREIGN KEY (task_id) REFERENCES tasks(id)
-    );`,
-	`CREATE TABLE IF NOT EXISTS milestones (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        task_id INTEGER NOT NULL,
-        type TEXT,
-        value INTEGER,
-        achieved_at DATE,
-        message TEXT,
-        FOREIGN KEY (task_id) REFERENCES tasks(id)
-    );`,
-	`CREATE TABLE IF NOT EXISTS reviews (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        task_id INTEGER NOT NULL,
-        week INTEGER,
-        summary TEXT,
-        mood TEXT,
-        FOREIGN KEY (task_id) REFERENCES tasks(id)
-    );`,
-	`CREATE TABLE IF NOT EXISTS config (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    );`,
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// RunMigrations executes each DDL statement in order. If any Exec fails,
-// it returns the error immediately.
-func RunMigrations(db *sql.DB) error {
-	for _, stmt := range migrations {
-		if _, err := db.Exec(stmt); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+// MigrationsDir is the relative path (from your binary's working directory)
+// to where your golang-migrate files live.
+//
+// Expected layout at project root:
+//
+//	migrations/
+const MigrationsDir = "migrations"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
