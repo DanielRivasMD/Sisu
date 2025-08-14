@@ -20,27 +20,46 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 
-	// SQLite driver
+	"github.com/golang-migrate/migrate/v4"
+	sqlite "github.com/golang-migrate/migrate/v4/database/sqlite"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// InitDB opens (and if needed, creates) the SQLite database at the given path,
-// runs migrations to ensure the schema is up to date, and returns the *sql.DB.
+var Conn *sql.DB
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// InitDB opens the file and runs migrations
 func InitDB(path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Run all migrations (CREATE TABLE IF NOT EXISTS …)
-	if err := RunMigrations(db); err != nil {
-		db.Close()
-		return nil, err
+	driver, err := sqlite.WithInstance(db, &sqlite.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("initializing migrations: %w", err)
 	}
 
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"sqlite3",
+		driver,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("initializing migrations: %w", err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return nil, fmt.Errorf("applying migrations: %w", err)
+	}
+
+	Conn = db
 	return db, nil
 }
 
