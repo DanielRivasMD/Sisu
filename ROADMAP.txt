@@ -20,3 +20,15 @@
   - sqlx
   - go-cal
   - julia - unicodeplots
+
+- database architecture:
+  - tasks: track the high-level routines or goals
+  - sessions: each time “track” a task, a session is logged
+  - milestones: used for incentives, streaks, or mastery checkpoints
+  - reviews: weekly or periodic reflections to prevent dropouts
+  - config: stores TOML-loaded goals or user preferences
+
+    other
+  - coach_messages: prewritten or dynamic messages triggered by milestones or streaks => id, trigger_type, content, sent_at
+  - calendar: for `cal` command—important dates, breaks, or annotations => id, date, note
+  - tags: to categorize tasks (e.g., "creative", "fitness", "learning") => id, name
