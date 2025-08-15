@@ -19,13 +19,16 @@ package db
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
 	"github.com/golang-migrate/migrate/v4"
-	sqlite "github.com/golang-migrate/migrate/v4/database/sqlite"
+	sqlitem "github.com/golang-migrate/migrate/v4/database/sqlite"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/aarondl/sqlboiler/v4/boil"
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -34,14 +37,14 @@ var Conn *sql.DB
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// InitDB opens the file and runs migrations
+// InitDB opens the file, applies migrations, and hooks up SQLBoiler.
 func InitDB(path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	driver, err := sqlite.WithInstance(db, &sqlite.Config{})
+	driver, err := sqlitem.WithInstance(db, &sqlitem.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("initializing migrations: %w", err)
 	}
@@ -59,8 +62,14 @@ func InitDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("applying migrations: %w", err)
 	}
 
+	boil.SetDB(db)
 	Conn = db
 	return db, nil
+}
+
+// Ctx returns a base context for all DB operations.
+func Ctx() context.Context {
+	return context.Background()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
