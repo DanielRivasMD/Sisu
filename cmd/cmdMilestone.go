@@ -52,10 +52,9 @@ var ()
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func init() {
-	// rootCmd.AddCommand(milestoneCmd)
+	rootCmd.AddCommand(milestoneCmd)
 
-	rootCmd.AddCommand(
-		NewCrudCmd("sisu.db", CrudModel[*models.Milestone]{
+	RegisterCrudSubcommands(milestoneCmd, "sisu.db", CrudModel[*models.Milestone]{
 			Singular: "milestone",
 
 			// 1. ListFn returns all milestones
@@ -97,8 +96,8 @@ func init() {
 				_, err = m.Delete(ctx, db)
 				return err
 			},
-		}),
-	)
+		})
+
 
 }
 
