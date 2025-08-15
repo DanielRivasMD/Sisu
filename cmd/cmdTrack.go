@@ -221,19 +221,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stageSelectTask:
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
-		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
-			sel := m.list.SelectedItem().(taskItem)
-			if sel.id == 0 {
-				m.stage = stageNewTaskName
-				m.textInput.Placeholder = "New task name"
-			} else {
-				m.selectedID = sel.id
-				m.stage = stageDateInput
-				m.textInput.Placeholder = "YYYY-MM-DD"
-				m.textInput.SetValue(time.Now().Format("2006-01-02"))
+
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			if msg.String() == "enter" {
+				sel := m.list.SelectedItem().(taskItem)
+				if sel.id == 0 {
+					m.stage = stageNewTaskName
+					m.textInput.Placeholder = "New task name"
+					m.textInput.SetValue("")
+					m.textInput.Focus()
+				} else {
+					m.selectedID = sel.id
+					m.stage = stageDateInput
+					m.textInput.Placeholder = "YYYY-MM-DD"
+					m.textInput.SetValue(time.Now().Format("2006-01-02"))
+					m.textInput.Focus()
+				}
 			}
-			m.textInput.SetValue("")
-			m.textInput.Focus()
+			return m, nil
 		}
 		return m, cmd
 
