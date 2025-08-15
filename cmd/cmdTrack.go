@@ -19,13 +19,15 @@ package cmd
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 import (
-	"database/sql"
 	"fmt"
+	"log"
 	"os"
+	"strconv"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
 	"github.com/DanielRivasMD/Sisu/db"
@@ -39,8 +41,8 @@ var trackCmd = &cobra.Command{
 	Long:    helpTrack,
 	Example: exampleTrack,
 
-	PreRun: preRunTrack,
-	Run: runTrack,
+	PreRun:  preRunTrack,
+	Run:     runTrack,
 	PostRun: postRunTrack,
 }
 
@@ -74,43 +76,69 @@ func preRunTrack(cmd *cobra.Command, args []string) {
 }
 
 func runTrack(cmd *cobra.Command, args []string) {
-	// 1) Grab the shared *sql.DB
+	// ensure DB is initialized
 	conn := db.Conn
 	if conn == nil {
-		fmt.Fprintln(os.Stderr, "database not initialized")
-		os.Exit(1)
+		log.Fatalln("database not initialized")
 	}
 
-	// 2) Select or create a task
-	taskID, err := promptSelectOrCreateTask(conn)
+	// load tasks
+	rows, err := conn.Query(`SELECT id, name FROM tasks WHERE archived = 0 ORDER BY name`)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "task selection error: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("fetch tasks: %v", err)
+	}
+	defer rows.Close()
+
+	var tasks []taskItem
+	for rows.Next() {
+		var t taskItem
+		if err := rows.Scan(&t.id, &t.name); err != nil {
+			log.Fatalf("scan task: %v", err)
+		}
+		tasks = append(tasks, t)
 	}
 
-	// 3) Prompt for session details
-	session, err := promptSessionDetails()
+	// start TUI
+	m := initialModel(tasks)
+	p := tea.NewProgram(m)
+	finalModel, err := p.StartReturningModel()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "input error: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("starting TUI: %v", err)
+	}
+	m = finalModel.(model)
+
+	// if new task, insert it
+	if m.newTaskName != "" {
+		res, err := conn.Exec(
+			`INSERT INTO tasks(name, created_at) VALUES (?, ?)`,
+			m.newTaskName,
+			time.Now().Format("2006-01-02"),
+		)
+		if err != nil {
+			log.Fatalf("insert new task: %v", err)
+		}
+		id, err := res.LastInsertId()
+		if err != nil {
+			log.Fatalf("lastInsertId: %v", err)
+		}
+		m.selectedID = id
 	}
 
-	// 4) Insert into sessions
+	// final insert into sessions
 	_, err = conn.Exec(
 		`INSERT INTO sessions(task_id, date, duration_minutes, score, notes)
-     VALUES (?, ?, ?, ?, ?)`,
-		taskID,
-		session.Date.Format("2006-01-02"),
-		session.Duration,
-		session.Score,
-		session.Notes,
+       VALUES (?, ?, ?, ?, ?)`,
+		m.selectedID,
+		m.session.Date.Format("2006-01-02"),
+		m.session.Duration,
+		m.session.Score,
+		m.session.Notes,
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to insert session: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("insert session: %v", err)
 	}
 
-	fmt.Println("Session recorded!")
+	fmt.Println("\n✅ Session recorded!")
 }
 
 func postRunTrack(cmd *cobra.Command, args []string) {
@@ -124,67 +152,11 @@ func postRunTrack(cmd *cobra.Command, args []string) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// promptSelectOrCreateTask shows existing tasks, or lets you type a new one.
-func promptSelectOrCreateTask(db *sql.DB) (int64, error) {
-	// fetch existing tasks
-	rows, err := db.Query(`SELECT id, name FROM tasks WHERE archived = 0 ORDER BY name`)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-
-	var ids []int64
-	var names []string
-	for rows.Next() {
-		var id int64
-		var name string
-		if err := rows.Scan(&id, &name); err != nil {
-			return 0, err
-		}
-		ids = append(ids, id)
-		names = append(names, name)
-	}
-
-	// add option to create new
-	names = append(names, "[Create new task]")
-
-	var choice string
-	prompt := &survey.Select{
-		Message: "Which task?",
-		Options: names,
-	}
-	if err := survey.AskOne(prompt, &choice); err != nil {
-		return 0, err
-	}
-
-	// if choosing to create
-	if choice == "[Create new task]" {
-		var newName string
-		if err := survey.AskOne(&survey.Input{
-			Message: "Task name:",
-		}, &newName, survey.WithValidator(survey.Required)); err != nil {
-			return 0, err
-		}
-
-		res, err := db.Exec(
-			`INSERT INTO tasks(name, created_at) VALUES (?, ?)`,
-			newName,
-			time.Now().Format(time.RFC3339),
-		)
-		if err != nil {
-			return 0, err
-		}
-		return res.LastInsertId()
-	}
-
-	// otherwise return selected id
-	for i, n := range names {
-		if n == choice {
-			return ids[i], nil
-		}
-	}
-	return 0, fmt.Errorf("invalid task choice")
-}
+var (
+	// configure list dimensions
+	listWidth  = 40
+	listHeight = 10
+)
 
 // sessionData holds the answers for a track entry
 type sessionData struct {
@@ -194,42 +166,205 @@ type sessionData struct {
 	Notes    string
 }
 
-func promptSessionDetails() (*sessionData, error) {
-	var sd sessionData
-	// Date
-	dateStr := time.Now().Format("2006-01-02")
-	if err := survey.AskOne(&survey.Input{
-		Message: "Date (YYYY-MM-DD):",
-		Default: dateStr,
-	}, &dateStr, survey.WithValidator(survey.Required)); err != nil {
-		return nil, err
-	}
-	d, err := time.Parse("2006-01-02", dateStr)
-	if err != nil {
-		return nil, err
-	}
-	sd.Date = d
+type taskItem struct {
+	id   int64
+	name string
+}
 
-	// Duration
-	if err := survey.AskOne(&survey.Input{
-		Message: "Duration (minutes):",
-	}, &sd.Duration, survey.WithValidator(survey.Required)); err != nil {
-		return nil, err
+func (t taskItem) Title() string       { return t.name }
+func (t taskItem) Description() string { return "" }
+func (t taskItem) FilterValue() string { return t.name }
+
+// stage constants
+const (
+	stageSelectTask = iota
+	stageNewTaskName
+	stageDateInput
+	stageDurationInput
+	stageScoreInput
+	stageNotesInput
+	stageDone
+)
+
+// model holds all TUI state
+type model struct {
+	stage       int
+	list        list.Model
+	textInput   textinput.Model
+	tasks       []taskItem
+	selectedID  int64
+	newTaskName string
+	session     sessionData
+}
+
+// initialModel builds the first stage (task list)
+func initialModel(tasks []taskItem) model {
+	items := make([]list.Item, len(tasks)+1)
+	for i, t := range tasks {
+		items[i] = t
+	}
+	// the last item is "Create new task"
+	items[len(tasks)] = taskItem{id: 0, name: "[Create new task]"}
+
+	l := list.New(items, list.NewDefaultDelegate(), listWidth, listHeight)
+	l.Title = "Select a task:"
+	l.SetShowHelp(false)
+
+	// prepare a blank textinput (we’ll configure when we need it)
+	ti := textinput.New()
+	ti.CharLimit = 64
+	ti.Width = listWidth
+
+	return model{
+		stage:     stageSelectTask,
+		list:      l,
+		textInput: ti,
+		tasks:     tasks,
+	}
+}
+
+// Init implements tea.Model
+func (m model) Init() tea.Cmd {
+	return nil
+}
+
+// Update drives the TUI state machine
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch m.stage {
+	case stageSelectTask:
+		// update the list
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			if msg.String() == "enter" {
+				sel := m.list.SelectedItem().(taskItem)
+				if sel.id == 0 {
+					// new task path
+					m.stage = stageNewTaskName
+					m.textInput.Placeholder = "New task name"
+					m.textInput.SetValue("")
+					m.textInput.Focus()
+				} else {
+					// existing task selected
+					m.selectedID = sel.id
+					m.stage = stageDateInput
+					m.textInput.Placeholder = "YYYY-MM-DD"
+					m.textInput.SetValue(time.Now().Format("2006-01-02"))
+					m.textInput.Focus()
+				}
+				return m, nil
+			}
+		}
+		return m, cmd
+
+	case stageNewTaskName:
+		// text input for new task name
+		ti, cmd := m.textInput.Update(msg)
+		m.textInput = ti
+
+		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
+			m.newTaskName = m.textInput.Value()
+			m.stage = stageDateInput
+			m.textInput.Blur()
+			m.textInput.Placeholder = "YYYY-MM-DD"
+			m.textInput.SetValue(time.Now().Format("2006-01-02"))
+			m.textInput.Focus()
+		}
+		return m, cmd
+
+	case stageDateInput:
+		ti, cmd := m.textInput.Update(msg)
+		m.textInput = ti
+
+		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
+			d, err := time.Parse("2006-01-02", m.textInput.Value())
+			if err != nil {
+				// ignore parse error; keep focus for correction
+				break
+			}
+			m.session.Date = d
+			m.stage = stageDurationInput
+			m.textInput.Placeholder = "Duration (minutes)"
+			m.textInput.SetValue("")
+			m.textInput.Focus()
+		}
+		return m, cmd
+
+	case stageDurationInput:
+		ti, cmd := m.textInput.Update(msg)
+		m.textInput = ti
+
+		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
+			if v, err := strconv.Atoi(m.textInput.Value()); err == nil {
+				m.session.Duration = v
+				m.stage = stageScoreInput
+				m.textInput.Placeholder = "Score (1–5)"
+				m.textInput.SetValue("")
+				m.textInput.Focus()
+			}
+		}
+		return m, cmd
+
+	case stageScoreInput:
+		ti, cmd := m.textInput.Update(msg)
+		m.textInput = ti
+
+		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
+			if v, err := strconv.Atoi(m.textInput.Value()); err == nil {
+				m.session.Score = v
+				m.stage = stageNotesInput
+				m.textInput.Placeholder = "Notes (optional)"
+				m.textInput.SetValue("")
+				m.textInput.Focus()
+			}
+		}
+		return m, cmd
+
+	case stageNotesInput:
+		ti, cmd := m.textInput.Update(msg)
+		m.textInput = ti
+
+		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
+			m.session.Notes = m.textInput.Value()
+			m.stage = stageDone
+			return m, tea.Quit
+		}
+		return m, cmd
+
+	default:
+		return m, tea.Quit
 	}
 
-	// Score
-	if err := survey.AskOne(&survey.Input{
-		Message: "Score (1–5):",
-	}, &sd.Score, survey.WithValidator(survey.Required)); err != nil {
-		return nil, err
+	return m, nil
+}
+
+// View renders the UI for the current stage
+func (m model) View() string {
+	switch m.stage {
+	case stageSelectTask:
+		return m.list.View()
+	case stageNewTaskName:
+		return fmt.Sprintf(
+			"Create a new task:\n\n%s\n\n(enter to confirm)",
+			m.textInput.View(),
+		)
+	case stageDateInput, stageDurationInput, stageScoreInput, stageNotesInput:
+		prompt := map[int]string{
+			stageDateInput:     "Session date (YYYY-MM-DD):",
+			stageDurationInput: "Session duration (minutes):",
+			stageScoreInput:    "Session score (1–5):",
+			stageNotesInput:    "Session notes (optional):",
+		}[m.stage]
+		return fmt.Sprintf(
+			"%s\n\n%s\n\n(enter to confirm)",
+			prompt,
+			m.textInput.View(),
+		)
+	default:
+		return ""
 	}
-
-	// Notes
-	survey.AskOne(&survey.Input{
-		Message: "Notes (optional):",
-	}, &sd.Notes)
-
-	return &sd, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
