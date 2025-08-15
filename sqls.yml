@@ -1,0 +1,5 @@
+connections:
+- alias: conn-sisu
+  driver: sqlite3
+  dataSourceName: file:/Users/drivas/Factorem/Sisu/sisu.db
+
