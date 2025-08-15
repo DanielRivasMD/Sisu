@@ -19,17 +19,17 @@ package cmd
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"log"
+	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/aarondl/null/v8"
 	"github.com/aarondl/sqlboiler/v4/boil"
 	"github.com/aarondl/sqlboiler/v4/queries/qm"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
 	"github.com/DanielRivasMD/Sisu/db"
@@ -55,218 +55,180 @@ var taskCmd = &cobra.Command{
 	},
 }
 
-var taskListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all non-archived tasks",
-	Run:   runTaskList,
-}
-
-var taskRmCmd = &cobra.Command{
-	Use:               "rm [id]",
-	Short:             "Remove a task by ID",
-	Args:              cobra.ExactArgs(1),
-	Run:               runTaskRm,
-	ValidArgsFunction: taskRmCompletions,
-}
-
 var taskAddCmd = &cobra.Command{
 	Use:   "add",
 	Short: "Interactive TUI to add a new task",
-	Run:   runTaskAddTUI,
+	Run:   runTaskAdd,
+}
+
+var taskEditCmd = &cobra.Command{
+	Use:   "edit",
+	Short: "Interactive TUI to edit task",
+	Run:   runTaskEdit,
 }
 
 func init() {
 	rootCmd.AddCommand(taskCmd)
-	taskCmd.AddCommand(taskListCmd, taskAddCmd, taskRmCmd)
+	taskCmd.AddCommand(taskAddCmd, taskEditCmd)
+
+	taskCmd.AddCommand(NewCrudCmd("sisu.db", CrudModel[*models.Task]{
+		Singular: "task",
+
+		ListFn: func(ctx context.Context, db *sql.DB) ([]*models.Task, error) {
+			return models.Tasks(qm.OrderBy("id ASC")).All(ctx, db)
+		},
+
+		Format: func(t *models.Task) (int64, string) {
+			return t.ID.Int64, fmt.Sprintf("%s (archived=%v)", t.Name, t.Archived.Bool)
+		},
+
+		RemoveFn: func(ctx context.Context, db *sql.DB, id int64) error {
+			task, err := models.FindTask(ctx, db, null.Int64From(id))
+			if err != nil {
+				return err
+			}
+			_, err = task.Delete(ctx, db)
+			return err
+		},
+	}))
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// runTaskList prints ID, name, description, target date, and archived flag.
-func runTaskList(cmd *cobra.Command, args []string) {
-	ctx := db.Ctx()
-	tasks, err := models.Tasks(
-		qm.OrderBy("id ASC"),
-	).All(ctx, db.Conn)
-	if err != nil {
-		log.Fatalf("query tasks: %v", err)
+func runTaskAdd(_ *cobra.Command, args []string) {
+	task := &models.Task{}
+
+	fields := []Field{
+		{
+			Label:   "Task name",
+			Initial: "",
+			Parse: func(s string) (interface{}, error) {
+				if s == "" {
+					return nil, fmt.Errorf("name cannot be blank")
+				}
+				return s, nil
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).
+					Elem().
+					FieldByName("Name").
+					SetString(v.(string))
+			},
+		},
+		{
+			Label:   "Description (optional)",
+			Initial: "",
+			Parse: func(s string) (interface{}, error) {
+				return null.StringFrom(s), nil
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).
+					Elem().
+					FieldByName("Description").
+					Set(reflect.ValueOf(v))
+			},
+		},
+		{
+			Label:   "Target date (YYYY-MM-DD)",
+			Initial: time.Now().Format("2006-01-02"),
+			Parse: func(s string) (interface{}, error) {
+				t, err := time.Parse("2006-01-02", s)
+				if err != nil {
+					return nil, err
+				}
+				return null.TimeFrom(t), nil
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).
+					Elem().
+					FieldByName("DateTarget").
+					Set(reflect.ValueOf(v))
+			},
+		},
 	}
 
-	if len(tasks) == 0 {
-		fmt.Println("no tasks found")
-		return
-	}
+	// ← here: unqualified call
+	RunFormWizard(fields, task)
 
-	fmt.Printf("ID\tName\tDescription\tTarget\tArchived\n")
-	fmt.Printf("--\t----\t-----------\t------\t--------\n")
-	for _, t := range tasks {
-		desc := t.Description.String
-		target := ""
-		if !t.DateTarget.Time.IsZero() {
-			target = t.DateTarget.Time.Format("2006-01-02")
-		}
-		fmt.Printf("%d\t%s\t%s\t%s\t%v\n",
-			t.ID.Int64,
-			t.Name,
-			desc,
-			target,
-			t.Archived.Bool,
-		)
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// runTaskRm deletes the task with the given ID.
-func runTaskRm(cmd *cobra.Command, args []string) {
-	id, err := strconv.ParseInt(args[0], 10, 64)
-	if err != nil {
-		log.Fatalf("invalid task id: %v", err)
-	}
-	ctx := db.Ctx()
-
-	task, err := models.FindTask(ctx, db.Conn, null.Int64From(id))
-	if err != nil {
-		log.Fatalf("find task: %v", err)
-	}
-
-	if _, err := task.Delete(ctx, db.Conn); err != nil {
-		log.Fatalf("delete task: %v", err)
-	}
-
-	fmt.Printf("Removed task %d: %s\n", id, task.Name)
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// taskRmCompletions provides shell completion of existing task IDs.
-func taskRmCompletions(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	ctx := db.Ctx()
-	tasks, err := models.Tasks(qm.OrderBy("id ASC")).All(ctx, db.Conn)
-	if err != nil {
-		return nil, cobra.ShellCompDirectiveError
-	}
-	var comps []string
-	for _, t := range tasks {
-		s := strconv.FormatInt(t.ID.Int64, 10)
-		if toComplete == "" || strings.HasPrefix(s, toComplete) {
-			comps = append(comps, s)
-		}
-	}
-	return comps, cobra.ShellCompDirectiveNoFileComp
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-const (
-	addStageName = iota
-	addStageDesc
-	addStageTarget
-	addStageStart
-	addStageDone
-)
-
-type addModel struct {
-	stage       int
-	textInput   textinput.Model
-	name        string
-	description string
-	target      string
-}
-
-// runTaskAddTUI launches a Bubble Tea TUI to gather name, description, and target date.
-func runTaskAddTUI(cmd *cobra.Command, args []string) {
-	p := tea.NewProgram(initialAddModel())
-	m, err := p.StartReturningModel()
-	if err != nil {
-		log.Fatalf("starting add TUI: %v", err)
-	}
-	m2 := m.(addModel)
-
-	// parse target date, empty means nil
-	var dt null.Time
-	if t := strings.TrimSpace(m2.target); t != "" {
-		if parsed, err := time.Parse("2006-01-02", t); err == nil {
-			dt = null.TimeFrom(parsed)
-		}
-	}
-
-	newTask := &models.Task{
-		Name:        m2.name,
-		Description: null.StringFrom(m2.description),
-		DateTarget:  dt,
-		// date_start defaults in DB
-		Archived: null.BoolFrom(false),
-	}
-
-	ctx := db.Ctx()
-	if err := newTask.Insert(ctx, db.Conn, boil.Infer()); err != nil {
+	// Persist via your db package
+	if err := task.Insert(context.Background(), db.Conn, boil.Infer()); err != nil {
 		log.Fatalf("insert task: %v", err)
 	}
-	fmt.Printf("✅ Created task %d: %s\n", newTask.ID.Int64, newTask.Name)
+	fmt.Printf("✅ GENERIC CRUD %d\n", task.ID.Int64)
+	fmt.Printf("✅ Created task %d\n", task.ID.Int64)
 }
 
-func initialAddModel() addModel {
-	ti := textinput.New()
-	ti.Placeholder = "Task name"
-	ti.Width = 40
-	ti.Focus()
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	return addModel{
-		stage:     addStageName,
-		textInput: ti,
+func runTaskEdit(_ *cobra.Command, args []string) {
+	// 1) parse the CLI‐arg into an int64
+	rawID := args[0]
+	idNum, err := strconv.ParseInt(rawID, 10, 64)
+	if err != nil {
+		log.Fatalf("invalid task ID %q: %v", rawID, err)
 	}
-}
 
-func (m addModel) Init() tea.Cmd {
-	return nil
-}
+	// 2) wrap into a null.Int64
+	id := null.Int64From(idNum)
 
-func (m addModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	ti, cmd := m.textInput.Update(msg)
-	m.textInput = ti
-
-	if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
-		switch m.stage {
-		case addStageName:
-			m.name = m.textInput.Value()
-			m.stage = addStageDesc
-			m.textInput.SetValue("")
-			m.textInput.Placeholder = "Description (optional)"
-			return m, m.textInput.Focus()
-		case addStageDesc:
-			m.description = m.textInput.Value()
-			m.stage = addStageTarget
-			m.textInput.SetValue("")
-			m.textInput.Placeholder = "Target date (YYYY-MM-DD)"
-			return m, m.textInput.Focus()
-		case addStageTarget:
-			m.target = m.textInput.Value()
-			m.stage = addStageStart
-			m.textInput.Placeholder = "YYYY-MM-DD"
-			m.textInput.SetValue(time.Now().Format("2006-01-02"))
-			return m, m.textInput.Focus()
-		case addStageStart:
-			m.target = m.textInput.Value()
-			m.stage = addStageDone
-			return m, tea.Quit
-		}
+	// 3) call FindTask with a null.Int64
+	task, err := models.FindTask(context.Background(), db.Conn, id)
+	if err != nil {
+		log.Fatalf("couldn't find task %d: %v", idNum, err)
 	}
-	return m, cmd
-}
 
-func (m addModel) View() string {
-	title := map[int]string{
-		addStageName:   "Enter task name:",
-		addStageDesc:   "Enter description (optional):",
-		addStageTarget: "Enter target date (YYYY-MM-DD):",
-		addStageStart:  "Enter start date (YYYY-MM-DD):",
-	}[m.stage]
-	return fmt.Sprintf(
-		"%s\n\n%s\n\n(enter to confirm)\n",
-		title,
-		m.textInput.View(),
-	)
+	// 4) seed and run the form wizard just like Add
+	fields := []Field{
+		{
+			Label:   "Task name",
+			Initial: task.Name,
+			Parse: func(s string) (interface{}, error) {
+				if s == "" {
+					return nil, fmt.Errorf("name cannot be blank")
+				}
+				return s, nil
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).Elem().FieldByName("Name").
+					SetString(v.(string))
+			},
+		},
+		{
+			Label:   "Description (optional)",
+			Initial: task.Description.String,
+			Parse: func(s string) (interface{}, error) {
+				return null.StringFrom(s), nil
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).Elem().FieldByName("Description").
+					Set(reflect.ValueOf(v))
+			},
+		},
+		{
+			Label:   "Target date (YYYY-MM-DD)",
+			Initial: task.DateTarget.Time.Format("2006-01-02"),
+			Parse: func(s string) (interface{}, error) {
+				t, err := time.Parse("2006-01-02", s)
+				if err != nil {
+					return nil, err
+				}
+				return null.TimeFrom(t), nil
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).Elem().FieldByName("DateTarget").
+					Set(reflect.ValueOf(v))
+			},
+		},
+	}
+
+	RunFormWizard(fields, task)
+
+	// 5) persist with Update
+	if _, err := task.Update(context.Background(), db.Conn, boil.Infer()); err != nil {
+		log.Fatalf("update failed: %v", err)
+	}
+	fmt.Printf("✅ Updated task %d\n", task.ID.Int64)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
