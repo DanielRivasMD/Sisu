@@ -1,9 +1,10 @@
 CREATE TABLE IF NOT EXISTS milestones (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id     INTEGER NOT NULL,
-    type        TEXT,
-    value       INTEGER,
-    achieved_at DATE,
-    message     TEXT,
-    FOREIGN KEY(task_id) REFERENCES tasks(id)
+	id integer PRIMARY KEY AUTOINCREMENT,
+	task integer NOT NULL,
+	type TEXT,
+	value integer,
+	achieved date,
+	message text,
+	FOREIGN KEY (task) REFERENCES tasks (id)
 );
+

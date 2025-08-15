@@ -1,8 +1,9 @@
 CREATE TABLE IF NOT EXISTS reviews (
-    id      INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id INTEGER NOT NULL,
-    week    INTEGER,
-    summary TEXT,
-    mood    TEXT,
-    FOREIGN KEY(task_id) REFERENCES tasks(id)
+	id integer PRIMARY KEY AUTOINCREMENT,
+	task integer NOT NULL,
+	week integer,
+	summary text,
+	mood text,
+	FOREIGN KEY (task) REFERENCES tasks (id)
 );
+

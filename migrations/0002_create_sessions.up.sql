@@ -1,9 +1,10 @@
 CREATE TABLE IF NOT EXISTS sessions (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id          INTEGER NOT NULL,
-    date             DATE    NOT NULL,
-    duration_minutes INTEGER,
-    score            INTEGER,
-    notes            TEXT,
-    FOREIGN KEY(task_id) REFERENCES tasks(id)
+	id integer PRIMARY KEY AUTOINCREMENT,
+	task integer NOT NULL,
+	date date NOT NULL,
+	duration integer,
+	score integer,
+	notes text,
+	FOREIGN KEY (task) REFERENCES tasks (id)
 );
+
