@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"database/sql"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
 	"github.com/DanielRivasMD/Sisu/db"
@@ -19,9 +21,9 @@ type CrudModel[T any] struct {
 	Singular string
 	ListFn   func(ctx context.Context, db *sql.DB) ([]T, error)
 	Format   func(item T) (int64, string)
-	AddFn    func(ctx context.Context, db *sql.DB, args []string) (int64, error)
+	// AddFn    func(ctx context.Context, db *sql.DB, args []string) (int64, error)
 	RemoveFn func(ctx context.Context, db *sql.DB, id int64) error
-	EditFn   func(ctx context.Context, db *sql.DB, id int64, args []string) error
+	// EditFn   func(ctx context.Context, db *sql.DB, id int64, args []string) error
 }
 
 // NewCrudCmd builds `root <singular>` with `list`, `add`, `rm`, `edit`.
@@ -62,21 +64,6 @@ func NewCrudCmd[T any](
 		},
 	})
 
-	// add
-	parent.AddCommand(&cobra.Command{
-		Use:   "add [fields...]",
-		Short: fmt.Sprintf("Add a new %s", desc.Singular),
-		Args:  cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			ctx := db.Ctx()
-			id, err := desc.AddFn(ctx, db.Conn, args)
-			if err != nil {
-				log.Fatalf("add %s: %v", desc.Singular, err)
-			}
-			fmt.Printf("✅ Created %s %d\n", desc.Singular, id)
-		},
-	})
-
 	// rm
 	rm := &cobra.Command{
 		Use:   "rm [id]",
@@ -113,25 +100,105 @@ func NewCrudCmd[T any](
 	}
 	parent.AddCommand(rm)
 
-	// edit (if provided)
-	if desc.EditFn != nil {
-		parent.AddCommand(&cobra.Command{
-			Use:   "edit [id] [fields...]",
-			Short: fmt.Sprintf("Edit a %s by ID", desc.Singular),
-			Args:  cobra.MinimumNArgs(2),
-			Run: func(cmd *cobra.Command, args []string) {
-				raw, err := strconv.ParseInt(args[0], 10, 64)
-				if err != nil {
-					log.Fatalf("invalid id: %v", err)
-				}
-				ctx := db.Ctx()
-				if err := desc.EditFn(ctx, db.Conn, raw, args[1:]); err != nil {
-					log.Fatalf("edit %s: %v", desc.Singular, err)
-				}
-				fmt.Printf("✏️  Updated %s %d\n", desc.Singular, raw)
-			},
-		})
+	return parent
+}
+
+// Field describes one form input
+type Field struct {
+	Name    string                                  // struct field name, e.g. "Name"
+	Label   string                                  // what to show the user
+	Initial string                                  // starting value in the input box
+	Parse   func(string) (interface{}, error)       // raw string → typed value
+	Assign  func(holder interface{}, v interface{}) // setter to write into the model
+	Input   textinput.Model                         // the Bubble Tea textinput component
+}
+
+// FormModel drives the multi‐field wizard
+type FormModel struct {
+	fields []Field
+	idx    int         // which field is currently active
+	holder interface{} // the model instance being modified
+}
+
+// NewFormModel builds a wizard over the given fields and model holder
+func NewFormModel(fields []Field, holder interface{}) FormModel {
+	for i := range fields {
+		ti := textinput.New()
+		ti.Placeholder = fields[i].Label
+		ti.SetValue(fields[i].Initial)
+		if i == 0 {
+			ti.Focus()
+		}
+		fields[i].Input = ti
+	}
+	return FormModel{
+		fields: fields,
+		idx:    0,
+		holder: holder,
+	}
+}
+
+func (m FormModel) Init() tea.Cmd { return nil }
+
+func (m FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	f := &m.fields[m.idx]
+	// Let the textinput handle keystrokes
+	ti, cmd := f.Input.Update(msg)
+	f.Input = ti
+
+	if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
+		raw := f.Input.Value()
+		val, err := f.Parse(raw)
+		if err != nil {
+			// Here you might flash an error message instead of skipping
+			return m, nil
+		}
+
+		// Assign the parsed value into the holder via reflect
+		f.Assign(m.holder, val)
+
+		// Advance or finish
+		m.idx++
+		if m.idx >= len(m.fields) {
+			return m, tea.Quit
+		}
+		// Focus next field
+		m.fields[m.idx].Input.Focus()
+		return m, nil
 	}
 
-	return parent
+	return m, cmd
+}
+
+func (m FormModel) View() string {
+	if m.idx >= len(m.fields) {
+		return ""
+	}
+	f := m.fields[m.idx]
+	header := fmt.Sprintf("[%d/%d] %s\n\n", m.idx+1, len(m.fields), f.Label)
+	footer := "\n\n(enter to confirm, ctrl+c to cancel)"
+	return header + f.Input.View() + footer
+}
+
+func RunFormWizard(fields []Field, holder interface{}) {
+	p := tea.NewProgram(NewFormModel(fields, holder))
+	if _, err := p.StartReturningModel(); err != nil {
+		log.Fatalf("form wizard failed: %v", err)
+	}
+}
+
+// cmd/form.go (add this variant)
+func RunFormWizardWithSubmit(
+	fields []Field,
+	holder interface{},
+	onSubmit func(holder interface{}) error,
+) {
+	p := tea.NewProgram(NewFormModel(fields, holder))
+	if _, err := p.StartReturningModel(); err != nil {
+		log.Fatalf("form wizard failed: %v", err)
+	}
+	// once the wizard quits, run your Insert or Update
+	if err := onSubmit(holder); err != nil {
+		log.Fatalf("submit failed: %v", err)
+	}
 }
