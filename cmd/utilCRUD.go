@@ -1,5 +1,22 @@
-// cmd/crud.go
+/*
+Copyright © 2025 Daniel Rivas <danielrivasmd@gmail.com>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 package cmd
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 import (
 	"context"
@@ -16,32 +33,24 @@ import (
 	"github.com/DanielRivasMD/Sisu/db"
 )
 
-// CrudModel describes everything that varies per table.
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 type CrudModel[T any] struct {
 	Singular string
 	ListFn   func(ctx context.Context, db *sql.DB) ([]T, error)
 	Format   func(item T) (int64, string)
-	// AddFn    func(ctx context.Context, db *sql.DB, args []string) (int64, error)
 	RemoveFn func(ctx context.Context, db *sql.DB, id int64) error
-	// EditFn   func(ctx context.Context, db *sql.DB, id int64, args []string) error
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func RegisterCrudSubcommands[T any](
 	parent *cobra.Command,
 	dbPath string,
 	desc CrudModel[T],
 ) {
-	parent.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		if _, err := db.InitDB(dbPath); err != nil {
-			log.Fatalf("init DB: %v", err)
-		}
-	}
-	parent.PersistentPostRun = func(cmd *cobra.Command, args []string) {
-		if db.Conn != nil {
-			_ = db.Conn.Close()
-			db.Conn = nil
-		}
-	}
+	parent.PersistentPreRun = persistentPreRun
+	parent.PersistentPostRun = persistentPostRun
 
 	// list
 	list := &cobra.Command{
@@ -75,8 +84,9 @@ func RegisterCrudSubcommands[T any](
 			if err := desc.RemoveFn(ctx, db.Conn, raw); err != nil {
 				log.Fatalf("rm %s: %v", desc.Singular, err)
 			}
-			fmt.Printf("🗑️  Removed %s %d\n", desc.Singular, raw)
+			fmt.Printf("Removed %s %d\n", desc.Singular, raw)
 		},
+
 		// optional: live completion of IDs
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			ctx := db.Ctx()
@@ -98,25 +108,28 @@ func RegisterCrudSubcommands[T any](
 	parent.AddCommand(rm)
 }
 
-// Field describes one form input
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 type Field struct {
-	Name    string                                  // struct field name, e.g. "Name"
-	Label   string                                  // what to show the user
-	Initial string                                  // starting value in the input box
-	Parse   func(string) (interface{}, error)       // raw string → typed value
-	Assign  func(holder interface{}, v interface{}) // setter to write into the model
-	Input   textinput.Model                         // the Bubble Tea textinput component
+	Name    string                    // struct field name
+	Label   string                    // what to show user
+	Initial string                    // starting value input box
+	Parse   func(string) (any, error) // raw string → typed value
+	Assign  func(holder any, v any)   // setter write into model
+	Input   textinput.Model           // the Bubble Tea textinput component
 }
 
 // FormModel drives the multi‐field wizard
 type FormModel struct {
 	fields []Field
-	idx    int         // which field is currently active
-	holder interface{} // the model instance being modified
+	idx    int // which field is active
+	holder any // model instance being modified
 }
 
-// NewFormModel builds a wizard over the given fields and model holder
-func NewFormModel(fields []Field, holder interface{}) FormModel {
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// NewFormModel builds wizard over given fields & model holder
+func NewFormModel(fields []Field, holder any) FormModel {
 	for i := range fields {
 		ti := textinput.New()
 		ti.Placeholder = fields[i].Label
@@ -175,18 +188,19 @@ func (m FormModel) View() string {
 	return header + f.Input.View() + footer
 }
 
-func RunFormWizard(fields []Field, holder interface{}) {
+func RunFormWizard(fields []Field, holder any) {
 	p := tea.NewProgram(NewFormModel(fields, holder))
 	if _, err := p.StartReturningModel(); err != nil {
 		log.Fatalf("form wizard failed: %v", err)
 	}
 }
 
-// cmd/form.go (add this variant)
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 func RunFormWizardWithSubmit(
 	fields []Field,
-	holder interface{},
-	onSubmit func(holder interface{}) error,
+	holder any,
+	onSubmit func(holder any) error,
 ) {
 	p := tea.NewProgram(NewFormModel(fields, holder))
 	if _, err := p.StartReturningModel(); err != nil {
@@ -197,3 +211,5 @@ func RunFormWizardWithSubmit(
 		log.Fatalf("submit failed: %v", err)
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
