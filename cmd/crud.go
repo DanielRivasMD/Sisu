@@ -26,29 +26,25 @@ type CrudModel[T any] struct {
 	// EditFn   func(ctx context.Context, db *sql.DB, id int64, args []string) error
 }
 
-// NewCrudCmd builds `root <singular>` with `list`, `add`, `rm`, `edit`.
-func NewCrudCmd[T any](
+func RegisterCrudSubcommands[T any](
+	parent *cobra.Command,
 	dbPath string,
 	desc CrudModel[T],
-) *cobra.Command {
-	parent := &cobra.Command{
-		Use:   desc.Singular,
-		Short: fmt.Sprintf("CRUD for %s", desc.Singular),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			if _, err := db.InitDB(dbPath); err != nil {
-				log.Fatalf("init DB: %v", err)
-			}
-		},
-		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if db.Conn != nil {
-				_ = db.Conn.Close()
-				db.Conn = nil
-			}
-		},
+) {
+	parent.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		if _, err := db.InitDB(dbPath); err != nil {
+			log.Fatalf("init DB: %v", err)
+		}
+	}
+	parent.PersistentPostRun = func(cmd *cobra.Command, args []string) {
+		if db.Conn != nil {
+			_ = db.Conn.Close()
+			db.Conn = nil
+		}
 	}
 
 	// list
-	parent.AddCommand(&cobra.Command{
+	list := &cobra.Command{
 		Use:   "list",
 		Short: fmt.Sprintf("List all %s", desc.Singular),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -62,7 +58,8 @@ func NewCrudCmd[T any](
 				fmt.Printf("%d\t%s\n", id, human)
 			}
 		},
-	})
+	}
+	parent.AddCommand(list)
 
 	// rm
 	rm := &cobra.Command{
@@ -99,8 +96,6 @@ func NewCrudCmd[T any](
 		},
 	}
 	parent.AddCommand(rm)
-
-	return parent
 }
 
 // Field describes one form input
