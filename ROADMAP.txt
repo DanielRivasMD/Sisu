@@ -1,7 +1,7 @@
 - important features:
   - feedback / context
   - micro-reviews
-  - day-off
+  - day-off; if review average is low, suggest day-off
   - coach system
 
 - command structure:
@@ -27,8 +27,6 @@
   - milestones: used for incentives, streaks, or mastery checkpoints
   - reviews: weekly or periodic reflections to prevent dropouts
   - config: stores TOML-loaded goals or user preferences
-
-    other
   - coach_messages: prewritten or dynamic messages triggered by milestones or streaks => id, trigger_type, content, sent_at
   - calendar: for `cal` command—important dates, breaks, or annotations => id, date, note
   - tags: to categorize tasks (e.g., "creative", "fitness", "learning") => id, name
