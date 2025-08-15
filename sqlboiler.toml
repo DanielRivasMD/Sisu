@@ -1,0 +1,10 @@
+# sqlboiler.toml
+[sqlite3]
+dbname = "sisu.db"
+pkgname = "sisu_pkg"
+output = "./models"
+additional_tags = ["json", "db"]
+
+# Don’t generate models for golang-migrate’s tables
+blacklist = ["schema_migrations", "schema_lock"]
+whitelist = []
