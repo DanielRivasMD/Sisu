@@ -41,13 +41,21 @@ var milestoneCmd = &cobra.Command{
 	Long:    helpMilestone,
 	Example: exampleMilestone,
 
-	// Run: runMilestone,
-
+	PersistentPreRun:  persistentPreRun,
+	PersistentPostRun: persistentPostRun,
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+var milestoneAddCmd = &cobra.Command{
+	Use:   "add",
+	Short: "Interactive TUI to add a new milestone",
+	// Run:   runmilestoneAdd,
+}
 
-var ()
+var milestoneEditCmd = &cobra.Command{
+	Use:   "edit",
+	Short: "Interactive TUI to edit milestone",
+	// Run:   runMilestoneEdit,
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -55,49 +63,48 @@ func init() {
 	rootCmd.AddCommand(milestoneCmd)
 
 	RegisterCrudSubcommands(milestoneCmd, "sisu.db", CrudModel[*models.Milestone]{
-			Singular: "milestone",
+		Singular: "milestone",
 
-			// 1. ListFn returns all milestones
-			ListFn: func(ctx context.Context, db *sql.DB) ([]*models.Milestone, error) {
-				return models.Milestones(
-					qm.OrderBy("id ASC"),
-				).All(ctx, db)
-			},
+		// 1. ListFn returns all milestones
+		ListFn: func(ctx context.Context, db *sql.DB) ([]*models.Milestone, error) {
+			return models.Milestones(
+				qm.OrderBy("id ASC"),
+			).All(ctx, db)
+		},
 
-			// 2. Format for display in "list"
-			Format: func(m *models.Milestone) (int64, string) {
-				// Task is an int64
-				taskID := m.Task
+		// 2. Format for display in "list"
+		Format: func(m *models.Milestone) (int64, string) {
+			// Task is an int64
+			taskID := m.Task
 
-				// Type, Value, Message, Achieved are nullable wrappers
-				typ := m.Type.String
-				value := m.Value.Int64
+			// Type, Value, Message, Achieved are nullable wrappers
+			typ := m.Type.String
+			value := m.Value.Int64
 
-				// Only show date if not zero
-				ach := ""
-				if !m.Achieved.Time.IsZero() {
-					ach = m.Achieved.Time.Format("2006-01-02")
-				}
+			// Only show date if not zero
+			ach := ""
+			if !m.Achieved.Time.IsZero() {
+				ach = m.Achieved.Time.Format("2006-01-02")
+			}
 
-				msg := m.Message.String
+			msg := m.Message.String
 
-				return m.ID.Int64, fmt.Sprintf(
-					"task=%d type=%s value=%d achieved=%s msg=%s",
-					taskID, typ, value, ach, msg,
-				)
-			},
+			return m.ID.Int64, fmt.Sprintf(
+				"task=%d type=%s value=%d achieved=%s msg=%s",
+				taskID, typ, value, ach, msg,
+			)
+		},
 
-			// 4. RemoveFn deletes by PK
-			RemoveFn: func(ctx context.Context, db *sql.DB, id int64) error {
-				m, err := models.FindMilestone(ctx, db, null.Int64From(id))
-				if err != nil {
-					return err
-				}
-				_, err = m.Delete(ctx, db)
+		// 4. RemoveFn deletes by PK
+		RemoveFn: func(ctx context.Context, db *sql.DB, id int64) error {
+			m, err := models.FindMilestone(ctx, db, null.Int64From(id))
+			if err != nil {
 				return err
-			},
-		})
-
+			}
+			_, err = m.Delete(ctx, db)
+			return err
+		},
+	})
 
 }
 
@@ -113,11 +120,5 @@ var exampleMilestone = formatExample(
 	"",
 	[]string{"milestone"},
 )
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// func runMilestone(cmd *cobra.Command, args []string) {
-
-// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
