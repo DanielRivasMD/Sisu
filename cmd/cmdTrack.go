@@ -25,19 +25,23 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/aarondl/null/v8"
+	"github.com/aarondl/sqlboiler/v4/boil"
+	qm "github.com/aarondl/sqlboiler/v4/queries/qm"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
 	"github.com/DanielRivasMD/Sisu/db"
+	"github.com/DanielRivasMD/Sisu/models"
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 var trackCmd = &cobra.Command{
 	Use:     "track",
-	Short:   "",
+	Short:   "Record a session against a task",
 	Long:    helpTrack,
 	Example: exampleTrack,
 
@@ -68,73 +72,68 @@ var exampleTrack = formatExample(
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func preRunTrack(cmd *cobra.Command, args []string) {
-	conn, err := db.InitDB(dbPath)
-	if err != nil {
-		fmt.Println("database initialization failed: %w", err)
+	if _, err := db.InitDB(dbPath); err != nil {
+		log.Fatalf("database initialization failed: %v", err)
 	}
-	_ = conn
 }
 
 func runTrack(cmd *cobra.Command, args []string) {
 	// ensure DB is initialized
-	conn := db.Conn
-	if conn == nil {
+	if db.Conn == nil {
 		log.Fatalln("database not initialized")
 	}
+	ctx := db.Ctx()
 
-	// load tasks
-	rows, err := conn.Query(`SELECT id, name FROM tasks WHERE archived = 0 ORDER BY name`)
+	// load tasks with SQLBoiler
+	tasksModels, err := models.Tasks(
+		qm.Where("archived = ?", false),
+		qm.OrderBy("name"),
+	).All(ctx, db.Conn)
 	if err != nil {
 		log.Fatalf("fetch tasks: %v", err)
 	}
-	defer rows.Close()
 
+	// convert to list items
 	var tasks []taskItem
-	for rows.Next() {
-		var t taskItem
-		if err := rows.Scan(&t.id, &t.name); err != nil {
-			log.Fatalf("scan task: %v", err)
-		}
-		tasks = append(tasks, t)
+	for _, t := range tasksModels {
+		tasks = append(tasks, taskItem{
+			id:   t.ID.Int64,
+			name: t.Name,
+		})
 	}
+	// add the "create new task" option
+	tasks = append(tasks, taskItem{id: 0, name: "[Create new task]"})
 
 	// start TUI
 	m := initialModel(tasks)
 	p := tea.NewProgram(m)
-	finalModel, err := p.StartReturningModel()
+	final, err := p.StartReturningModel()
 	if err != nil {
 		log.Fatalf("starting TUI: %v", err)
 	}
-	m = finalModel.(model)
+	m = final.(model)
 
-	// if new task, insert it
+	// if user created a new task, insert it
 	if m.newTaskName != "" {
-		res, err := conn.Exec(
-			`INSERT INTO tasks(name, created_at) VALUES (?, ?)`,
-			m.newTaskName,
-			time.Now().Format("2006-01-02"),
-		)
-		if err != nil {
+		newTask := &models.Task{
+			Name:      m.newTaskName,
+			DateStart: null.TimeFrom(time.Now()),
+		}
+		if err := newTask.Insert(ctx, db.Conn, boil.Infer()); err != nil {
 			log.Fatalf("insert new task: %v", err)
 		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			log.Fatalf("lastInsertId: %v", err)
-		}
-		m.selectedID = id
+		m.selectedID = newTask.ID.Int64
 	}
 
-	// final insert into sessions
-	_, err = conn.Exec(
-		`INSERT INTO sessions(task_id, date, duration_minutes, score, notes)
-       VALUES (?, ?, ?, ?, ?)`,
-		m.selectedID,
-		m.session.Date.Format("2006-01-02"),
-		m.session.Duration,
-		m.session.Score,
-		m.session.Notes,
-	)
-	if err != nil {
+	// record the session
+	session := &models.Session{
+		Task:          m.selectedID,
+		Date:          m.session.Date,
+		DurationMins:  null.Int64From(int64(m.session.Duration)),
+		ScoreFeedback: null.Int64From(int64(m.session.Score)),
+		Notes:         null.StringFrom(m.session.Notes),
+	}
+	if err := session.Insert(ctx, db.Conn, boil.Infer()); err != nil {
 		log.Fatalf("insert session: %v", err)
 	}
 
@@ -153,12 +152,10 @@ func postRunTrack(cmd *cobra.Command, args []string) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 var (
-	// configure list dimensions
 	listWidth  = 40
 	listHeight = 10
 )
 
-// sessionData holds the answers for a track entry
 type sessionData struct {
 	Date     time.Time
 	Duration int
@@ -175,7 +172,6 @@ func (t taskItem) Title() string       { return t.name }
 func (t taskItem) Description() string { return "" }
 func (t taskItem) FilterValue() string { return t.name }
 
-// stage constants
 const (
 	stageSelectTask = iota
 	stageNewTaskName
@@ -186,7 +182,6 @@ const (
 	stageDone
 )
 
-// model holds all TUI state
 type model struct {
 	stage       int
 	list        list.Model
@@ -197,20 +192,16 @@ type model struct {
 	session     sessionData
 }
 
-// initialModel builds the first stage (task list)
 func initialModel(tasks []taskItem) model {
-	items := make([]list.Item, len(tasks)+1)
+	items := make([]list.Item, len(tasks))
 	for i, t := range tasks {
 		items[i] = t
 	}
-	// the last item is "Create new task"
-	items[len(tasks)] = taskItem{id: 0, name: "[Create new task]"}
 
 	l := list.New(items, list.NewDefaultDelegate(), listWidth, listHeight)
 	l.Title = "Select a task:"
 	l.SetShowHelp(false)
 
-	// prepare a blank textinput (we’ll configure when we need it)
 	ti := textinput.New()
 	ti.CharLimit = 64
 	ti.Width = listWidth
@@ -223,51 +214,35 @@ func initialModel(tasks []taskItem) model {
 	}
 }
 
-// Init implements tea.Model
-func (m model) Init() tea.Cmd {
-	return nil
-}
+func (m model) Init() tea.Cmd { return nil }
 
-// Update drives the TUI state machine
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.stage {
 	case stageSelectTask:
-		// update the list
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
-
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			if msg.String() == "enter" {
-				sel := m.list.SelectedItem().(taskItem)
-				if sel.id == 0 {
-					// new task path
-					m.stage = stageNewTaskName
-					m.textInput.Placeholder = "New task name"
-					m.textInput.SetValue("")
-					m.textInput.Focus()
-				} else {
-					// existing task selected
-					m.selectedID = sel.id
-					m.stage = stageDateInput
-					m.textInput.Placeholder = "YYYY-MM-DD"
-					m.textInput.SetValue(time.Now().Format("2006-01-02"))
-					m.textInput.Focus()
-				}
-				return m, nil
+		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
+			sel := m.list.SelectedItem().(taskItem)
+			if sel.id == 0 {
+				m.stage = stageNewTaskName
+				m.textInput.Placeholder = "New task name"
+			} else {
+				m.selectedID = sel.id
+				m.stage = stageDateInput
+				m.textInput.Placeholder = "YYYY-MM-DD"
+				m.textInput.SetValue(time.Now().Format("2006-01-02"))
 			}
+			m.textInput.SetValue("")
+			m.textInput.Focus()
 		}
 		return m, cmd
 
 	case stageNewTaskName:
-		// text input for new task name
 		ti, cmd := m.textInput.Update(msg)
 		m.textInput = ti
-
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
 			m.newTaskName = m.textInput.Value()
 			m.stage = stageDateInput
-			m.textInput.Blur()
 			m.textInput.Placeholder = "YYYY-MM-DD"
 			m.textInput.SetValue(time.Now().Format("2006-01-02"))
 			m.textInput.Focus()
@@ -277,25 +252,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stageDateInput:
 		ti, cmd := m.textInput.Update(msg)
 		m.textInput = ti
-
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
 			d, err := time.Parse("2006-01-02", m.textInput.Value())
-			if err != nil {
-				// ignore parse error; keep focus for correction
-				break
+			if err == nil {
+				m.session.Date = d
+				m.stage = stageDurationInput
+				m.textInput.Placeholder = "Duration (minutes)"
+				m.textInput.SetValue("")
+				m.textInput.Focus()
 			}
-			m.session.Date = d
-			m.stage = stageDurationInput
-			m.textInput.Placeholder = "Duration (minutes)"
-			m.textInput.SetValue("")
-			m.textInput.Focus()
 		}
 		return m, cmd
 
 	case stageDurationInput:
 		ti, cmd := m.textInput.Update(msg)
 		m.textInput = ti
-
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
 			if v, err := strconv.Atoi(m.textInput.Value()); err == nil {
 				m.session.Duration = v
@@ -310,7 +281,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stageScoreInput:
 		ti, cmd := m.textInput.Update(msg)
 		m.textInput = ti
-
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
 			if v, err := strconv.Atoi(m.textInput.Value()); err == nil {
 				m.session.Score = v
@@ -325,7 +295,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stageNotesInput:
 		ti, cmd := m.textInput.Update(msg)
 		m.textInput = ti
-
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
 			m.session.Notes = m.textInput.Value()
 			m.stage = stageDone
@@ -336,11 +305,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 		return m, tea.Quit
 	}
-
-	return m, nil
 }
 
-// View renders the UI for the current stage
 func (m model) View() string {
 	switch m.stage {
 	case stageSelectTask:
