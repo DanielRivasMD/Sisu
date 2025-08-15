@@ -38,21 +38,14 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// taskCmd is the parent for subcommands: list, add (TUI), rm.
 var taskCmd = &cobra.Command{
 	Use:   "task",
-	Short: "Manage tasks (list, add, rm)",
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if _, err := db.InitDB(dbPath); err != nil {
-			log.Fatalf("failed to init DB: %v", err)
-		}
-	},
-	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		if db.Conn != nil {
-			_ = db.Conn.Close()
-			db.Conn = nil
-		}
-	},
+	Short: "Manage tasks",
+	// Long:    helpTask,
+	// Example: exampleTask,
+
+	PersistentPreRun:  persistentPreRun,
+	PersistentPostRun: persistentPostRun,
 }
 
 var taskAddCmd = &cobra.Command{
@@ -66,6 +59,8 @@ var taskEditCmd = &cobra.Command{
 	Short: "Interactive TUI to edit task",
 	Run:   runTaskEdit,
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func init() {
 	rootCmd.AddCommand(taskCmd)
@@ -103,13 +98,13 @@ func runTaskAdd(_ *cobra.Command, args []string) {
 		{
 			Label:   "Task name",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return nil, fmt.Errorf("name cannot be blank")
 				}
 				return s, nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Name").
@@ -119,10 +114,10 @@ func runTaskAdd(_ *cobra.Command, args []string) {
 		{
 			Label:   "Description (optional)",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return null.StringFrom(s), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Description").
@@ -132,14 +127,14 @@ func runTaskAdd(_ *cobra.Command, args []string) {
 		{
 			Label:   "Target date (YYYY-MM-DD)",
 			Initial: time.Now().Format("2006-01-02"),
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				t, err := time.Parse("2006-01-02", s)
 				if err != nil {
 					return nil, err
 				}
 				return null.TimeFrom(t), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("DateTarget").
@@ -148,15 +143,13 @@ func runTaskAdd(_ *cobra.Command, args []string) {
 		},
 	}
 
-	// ← here: unqualified call
 	RunFormWizard(fields, task)
 
 	// Persist via your db package
 	if err := task.Insert(context.Background(), db.Conn, boil.Infer()); err != nil {
 		log.Fatalf("insert task: %v", err)
 	}
-	fmt.Printf("✅ GENERIC CRUD %d\n", task.ID.Int64)
-	fmt.Printf("✅ Created task %d\n", task.ID.Int64)
+	fmt.Printf("Created task %d\n", task.ID.Int64)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -183,13 +176,13 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Task name",
 			Initial: task.Name,
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return nil, fmt.Errorf("name cannot be blank")
 				}
 				return s, nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).Elem().FieldByName("Name").
 					SetString(v.(string))
 			},
@@ -197,10 +190,10 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Description (optional)",
 			Initial: task.Description.String,
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return null.StringFrom(s), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).Elem().FieldByName("Description").
 					Set(reflect.ValueOf(v))
 			},
@@ -208,14 +201,14 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Target date (YYYY-MM-DD)",
 			Initial: task.DateTarget.Time.Format("2006-01-02"),
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				t, err := time.Parse("2006-01-02", s)
 				if err != nil {
 					return nil, err
 				}
 				return null.TimeFrom(t), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).Elem().FieldByName("DateTarget").
 					Set(reflect.ValueOf(v))
 			},
@@ -228,7 +221,7 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 	if _, err := task.Update(context.Background(), db.Conn, boil.Infer()); err != nil {
 		log.Fatalf("update failed: %v", err)
 	}
-	fmt.Printf("✅ Updated task %d\n", task.ID.Int64)
+	fmt.Printf("Updated task %d\n", task.ID.Int64)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
