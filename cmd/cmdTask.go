@@ -71,7 +71,7 @@ func init() {
 	rootCmd.AddCommand(taskCmd)
 	taskCmd.AddCommand(taskAddCmd, taskEditCmd)
 
-	taskCmd.AddCommand(NewCrudCmd("sisu.db", CrudModel[*models.Task]{
+	RegisterCrudSubcommands(taskCmd, "sisu.db", CrudModel[*models.Task]{
 		Singular: "task",
 
 		ListFn: func(ctx context.Context, db *sql.DB) ([]*models.Task, error) {
@@ -90,7 +90,7 @@ func init() {
 			_, err = task.Delete(ctx, db)
 			return err
 		},
-	}))
+	})
 
 }
 
