@@ -19,6 +19,7 @@ package cmd
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 import (
+	"log"
 	"strings"
 
 	"github.com/DanielRivasMD/horus"
@@ -27,6 +28,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
 	"github.com/ttacon/chalk"
+
+	"github.com/DanielRivasMD/Sisu/db"
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -47,10 +50,7 @@ func Execute() {
 
 var (
 	verbose bool
-)
-
-var (
-	dbPath string // populated by the --db flag
+	dbPath  string // populated by the --db flag
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -127,6 +127,21 @@ func formatExample(app string, usages ...[]string) string {
 	}
 
 	return b.String()
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func persistentPreRun(cmd *cobra.Command, args []string) {
+	if _, err := db.InitDB(dbPath); err != nil {
+		log.Fatalf("init DB: %v", err)
+	}
+}
+
+func persistentPostRun(cmd *cobra.Command, args []string) {
+	if db.Conn != nil {
+		_ = db.Conn.Close()
+		db.Conn = nil
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
