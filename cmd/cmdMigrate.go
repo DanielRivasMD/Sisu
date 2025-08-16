@@ -40,10 +40,6 @@ var migrateCmd = &cobra.Command{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-var ()
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 func init() {
 	rootCmd.AddCommand(migrateCmd)
 }
@@ -69,14 +65,14 @@ func runMigrate(cmd *cobra.Command, args []string) {
 	// InitDB creates the file and runs migrations
 	conn, err := db.InitDB(dbPath)
 	if err != nil {
-		log.Fatalf("❌ migrate failed: %v", err)
+		log.Fatalf("migrate failed: %v", err)
 	}
 
-	fmt.Printf("✅ migrations applied; database at %s\n", dbPath)
+	fmt.Printf("migrations applied; database at %s\n", dbPath)
 
 	if conn != nil {
 		if err := conn.Close(); err != nil {
-			log.Printf("⚠️ error closing DB: %v", err)
+			log.Printf("error closing DB: %v", err)
 		}
 	}
 
