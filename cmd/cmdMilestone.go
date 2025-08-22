@@ -37,7 +37,7 @@ import (
 
 var milestoneCmd = &cobra.Command{
 	Use:     "milestone",
-	Short:   "",
+	Short:   "Manage milestones",
 	Long:    helpMilestone,
 	Example: exampleMilestone,
 
@@ -107,18 +107,5 @@ func init() {
 	})
 
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-var helpMilestone = formatHelp(
-	"Daniel Rivas",
-	"<danielrivasmd@gmail.com>",
-	"",
-)
-
-var exampleMilestone = formatExample(
-	"",
-	[]string{"milestone"},
-)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
