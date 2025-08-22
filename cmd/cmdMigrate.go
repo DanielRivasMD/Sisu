@@ -46,20 +46,7 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-var helpMigrate = formatHelp(
-	"Daniel Rivas",
-	"<danielrivasmd@gmail.com>",
-	"Runs every pending .up.sql migration against your SQLite database"+
-		"If the database file doesn’t exist yet, it will be created automatically",
-)
-
-var exampleMigrate = formatExample(
-	"",
-	[]string{"migrate"},
-)
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
+// TODO: if successful, run `sqlboiler sqlite3`
 func runMigrate(cmd *cobra.Command, args []string) {
 
 	// InitDB creates the file and runs migrations
