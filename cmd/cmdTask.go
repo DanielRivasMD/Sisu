@@ -41,8 +41,8 @@ import (
 var taskCmd = &cobra.Command{
 	Use:   "task",
 	Short: "Manage tasks",
-	// Long:    helpTask,
-	// Example: exampleTask,
+	Long:    helpTask,
+	Example: exampleTask,
 
 	PersistentPreRun:  persistentPreRun,
 	PersistentPostRun: persistentPostRun,
