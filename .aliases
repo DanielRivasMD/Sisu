@@ -5,3 +5,5 @@
 ---
 ji: 
   command: just install
+sql: 
+  command: litecli sisu.db
