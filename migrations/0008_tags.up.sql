@@ -1,5 +1,0 @@
-CREATE TABLE tags (
-	id integer PRIMARY KEY AUTOINCREMENT,
-	name text UNIQUE NOT NULL
-);
-
