@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE TABLE IF NOT EXISTS sessions (
 	id integer PRIMARY KEY AUTOINCREMENT,
 	task integer NOT NULL,
-	date date NOT NULL,
+	date date,
 	duration_mins integer,
 	score_feedback integer,
 	notes text,
