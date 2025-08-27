@@ -30,7 +30,10 @@ _default:
 # generate sql structs
 [group('dev')]
 @sqlboiler:
-  sqlboiler sqlite3
+  rm sisu.db && echo "cleaned database"
+  sisu migrate
+  rm -rf models && echo "purged models"
+  sqlboiler sqlite3 && echo "generated models"
 
 ####################################################################################################
 # import
