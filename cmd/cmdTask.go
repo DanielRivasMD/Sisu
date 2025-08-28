@@ -112,6 +112,19 @@ func runTaskAdd(_ *cobra.Command, args []string) {
 			},
 		},
 		{
+			Label:   "Tag (optional)",
+			Initial: "",
+			Parse: func(s string) (any, error) {
+				return null.StringFrom(s), nil
+			},
+			Assign: func(holder any, v any) {
+				reflect.ValueOf(holder).
+					Elem().
+					FieldByName("Tag").
+					Set(reflect.ValueOf(v))
+			},
+		},
+		{
 			Label:   "Description (optional)",
 			Initial: "",
 			Parse: func(s string) (any, error) {
@@ -185,6 +198,17 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).Elem().FieldByName("Name").
 					SetString(v.(string))
+			},
+		},
+		{
+			Label:   "Tag (optional)",
+			Initial: task.Tag.String,
+			Parse: func(s string) (any, error) {
+				return null.StringFrom(s), nil
+			},
+			Assign: func(holder any, v any) {
+				reflect.ValueOf(holder).Elem().FieldByName("Tag").
+					Set(reflect.ValueOf(v))
 			},
 		},
 		{
