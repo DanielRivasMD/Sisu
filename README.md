@@ -1,13 +1,39 @@
-# PROJECT_NAME
+# Sisu
 
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 
 ## Overview
-
 `sisu`, build habits, finnish strong
 
 
 ## Features
+
+- important features:
+  - feedback / context
+  - micro-reviews
+  - day-off; if review average is low, suggest day-off
+  - coach system
+
+- command structure:
+  - stats
+  - graph
+  - streak
+  - cal
+
+- tech stack:
+  - cobra / viper
+  - bubbletea
+  - sqlx
+  - go-cal
+  - julia - unicodeplots
+
+- database architecture:
+  - tasks: track the high-level routines or goals, including tag categories
+  - sessions: each time “track” a task, a session is logged
+  - milestones: used for incentives, streaks, or mastery checkpoints
+  - reviews: weekly or periodic reflections to prevent dropouts
+  - coach: prewritten or dynamic messages triggered by milestones or streaks
+  - calendar: for `cal` command—important dates, breaks, or annotations
 
 ## Quickstart
 ```

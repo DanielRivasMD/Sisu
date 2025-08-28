@@ -1,43 +1,10 @@
-- important features:
-  - feedback / context
-  - micro-reviews
-  - day-off; if review average is low, suggest day-off
-  - coach system
-
-- command structure:
-  - track
-  - update
-  - remove (default => last entry)
-  - stats
-  - graph
-  - streak
-  - config
-  - cal
-
-- tech stack:
-  - cobra / viper
-  - bubbletea
-  - sqlx
-  - go-cal
-  - julia - unicodeplots
-
-- database architecture:
-  - tasks: track the high-level routines or goals
-  - sessions: each time “track” a task, a session is logged
-  - milestones: used for incentives, streaks, or mastery checkpoints
-  - reviews: weekly or periodic reflections to prevent dropouts
-  - config: stores TOML-loaded goals or user preferences
-  - coach_messages: prewritten or dynamic messages triggered by milestones or streaks => id, trigger_type, content, sent_at
-  - calendar: for `cal` command—important dates, breaks, or annotations => id, date, note
-  - tags: to categorize tasks (e.g., "creative", "fitness", "learning") => id, name
-
 - use error handling => `horus`
 - resolve embedding! => `sisu` can only be used now from developer path
+- ui/ux widgets
+- add shell completion for rm IDs by reusing your ValidArgsFunction
+- share Bubble Tea form logic in a mix-in so both add and edit commands can re‐use the same FormModel code
 
 ==================================================
 cmd/cmdMigrate.go
   line 49     TODO   if successful, run `sqlboiler sqlite3`
-cmd/cmdTrack.go
-  line 42     TODO   update for generic implementation carefully
-  line 43     TODO   bootstrap `sisu session add = sisu track`
 ==================================================
