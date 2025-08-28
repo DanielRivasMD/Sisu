@@ -1,0 +1,245 @@
+/*
+Copyright © 2025 Daniel Rivas <danielrivasmd@gmail.com>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+package cmd
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"log"
+	"reflect"
+	"strconv"
+
+	"github.com/aarondl/null/v8"
+	"github.com/aarondl/sqlboiler/v4/boil"
+	"github.com/aarondl/sqlboiler/v4/queries/qm"
+	"github.com/spf13/cobra"
+
+	"github.com/DanielRivasMD/Sisu/db"
+	"github.com/DanielRivasMD/Sisu/models"
+)
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+var reviewCmd = &cobra.Command{
+	Use:   "review",
+	Short: "Manage review entries (list, rm via CLI; add, edit via TUI)",
+}
+
+var reviewAddCmd = &cobra.Command{
+	Use:   "add",
+	Short: "Interactive TUI to add a new review",
+	Run:   runReviewAdd,
+}
+
+var reviewEditCmd = &cobra.Command{
+	Use:   "edit [id]",
+	Short: "Interactive TUI to edit an existing review",
+	Args:  cobra.ExactArgs(1),
+	Run:   runReviewEdit,
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func init() {
+	// attach the review parent and TUI subcommands
+	rootCmd.AddCommand(reviewCmd)
+	reviewCmd.AddCommand(reviewAddCmd, reviewEditCmd)
+
+	// register list & rm via the generic CRUD helper
+	RegisterCrudSubcommands(reviewCmd, "sisu.db", CrudModel[*models.Review]{
+		Singular: "review",
+
+		// list all reviews
+		ListFn: func(ctx context.Context, conn *sql.DB) ([]*models.Review, error) {
+			return models.Reviews(qm.OrderBy("id ASC")).All(ctx, conn)
+		},
+
+		// format one review row for "list"
+		Format: func(r *models.Review) (int64, string) {
+			// task FK
+			taskID := r.Task
+
+			// week is nullable
+			week := ""
+			if r.Week.Valid {
+				week = strconv.FormatInt(r.Week.Int64, 10)
+			}
+
+			// summary is nullable text
+			summary := r.Summary.String
+
+			return r.ID.Int64,
+				fmt.Sprintf("task=%d week=%s summary=%s", taskID, week, summary)
+		},
+
+		// rm by primary key
+		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
+			rev, err := models.FindReview(ctx, conn, null.Int64From(id))
+			if err != nil {
+				return err
+			}
+			_, err = rev.Delete(ctx, conn)
+			return err
+		},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// runReviewAdd drives a TUI wizard to gather and INSERT a new review.
+func runReviewAdd(_ *cobra.Command, _ []string) {
+	rev := &models.Review{}
+
+	fields := []Field{
+		{
+			Label:   "Task ID",
+			Initial: "",
+			Parse: func(s string) (interface{}, error) {
+				return strconv.ParseInt(s, 10, 64)
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).
+					Elem().
+					FieldByName("Task").
+					SetInt(v.(int64))
+			},
+		},
+		{
+			Label:   "Week (optional)",
+			Initial: "",
+			Parse: func(s string) (interface{}, error) {
+				if s == "" {
+					return null.Int64{}, nil
+				}
+				w, err := strconv.ParseInt(s, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				return null.Int64From(w), nil
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).
+					Elem().
+					FieldByName("Week").
+					Set(reflect.ValueOf(v))
+			},
+		},
+		{
+			Label:   "Summary (optional)",
+			Initial: "",
+			Parse: func(s string) (interface{}, error) {
+				return null.StringFrom(s), nil
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).
+					Elem().
+					FieldByName("Summary").
+					Set(reflect.ValueOf(v))
+			},
+		},
+	}
+
+	RunFormWizard(fields, rev)
+
+	if err := rev.Insert(context.Background(), db.Conn, boil.Infer()); err != nil {
+		log.Fatalf("insert review: %v", err)
+	}
+	fmt.Printf("✅ Created review %d\n", rev.ID.Int64)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// runReviewEdit renders a pre-seeded TUI wizard then UPDATEs the record.
+func runReviewEdit(_ *cobra.Command, args []string) {
+	rawID := args[0]
+	idNum, err := strconv.ParseInt(rawID, 10, 64)
+	if err != nil {
+		log.Fatalf("invalid review ID %q: %v", rawID, err)
+	}
+
+	// fetch the existing record
+	rev, err := models.FindReview(context.Background(), db.Conn, null.Int64From(idNum))
+	if err != nil {
+		log.Fatalf("find review %d: %v", idNum, err)
+	}
+
+	fields := []Field{
+		{
+			Label:   "Task ID",
+			Initial: strconv.FormatInt(rev.Task, 10),
+			Parse: func(s string) (interface{}, error) {
+				return strconv.ParseInt(s, 10, 64)
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).
+					Elem().
+					FieldByName("Task").
+					SetInt(v.(int64))
+			},
+		},
+		{
+			Label: "Week (optional)",
+			Initial: func() string {
+				if rev.Week.Valid {
+					return strconv.FormatInt(rev.Week.Int64, 10)
+				}
+				return ""
+			}(),
+			Parse: func(s string) (interface{}, error) {
+				if s == "" {
+					return null.Int64{}, nil
+				}
+				w, err := strconv.ParseInt(s, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				return null.Int64From(w), nil
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).
+					Elem().
+					FieldByName("Week").
+					Set(reflect.ValueOf(v))
+			},
+		},
+		{
+			Label:   "Summary (optional)",
+			Initial: rev.Summary.String,
+			Parse: func(s string) (interface{}, error) {
+				return null.StringFrom(s), nil
+			},
+			Assign: func(holder interface{}, v interface{}) {
+				reflect.ValueOf(holder).
+					Elem().
+					FieldByName("Summary").
+					Set(reflect.ValueOf(v))
+			},
+		},
+	}
+
+	RunFormWizard(fields, rev)
+
+	if _, err := rev.Update(context.Background(), db.Conn, boil.Whitelist("task", "week", "summary")); err != nil {
+		log.Fatalf("update review: %v", err)
+	}
+	fmt.Printf("✅ Updated review %d\n", rev.ID.Int64)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
