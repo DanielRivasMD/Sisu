@@ -5,5 +5,7 @@
 ---
 ji: 
   command: just install
+jt: 
+  command: just todor
 sql: 
   command: litecli sisu.db
