@@ -79,7 +79,7 @@ func init() {
 		// Format: how each row shows up in "sisu session list"
 		Format: func(s *models.Session) (int64, string) {
 			// format the NOT NULL date
-			date := s.Date.Time.Format("2006-01-02")
+			date := s.Date.Format("2006-01-02")
 
 			// duration and score_feedback are nullable
 			dur := ""
