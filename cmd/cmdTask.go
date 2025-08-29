@@ -38,9 +38,10 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO: add subcmd to archive task
 var taskCmd = &cobra.Command{
-	Use:   "task",
-	Short: "Manage tasks",
+	Use:     "task",
+	Short:   "Manage tasks",
 	Long:    helpTask,
 	Example: exampleTask,
 
@@ -54,6 +55,7 @@ var taskAddCmd = &cobra.Command{
 	Run:   runTaskAdd,
 }
 
+// TODO: add graceful error on absence of arguments
 var taskEditCmd = &cobra.Command{
 	Use:   "edit",
 	Short: "Interactive TUI to edit task",
@@ -91,6 +93,7 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO: include option to add start date
 func runTaskAdd(_ *cobra.Command, args []string) {
 	task := &models.Task{}
 

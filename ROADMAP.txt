@@ -1,10 +1,13 @@
 - use error handling => `horus`
 - resolve embedding! => `sisu` can only be used now from developer path
-- ui/ux widgets
 - add shell completion for rm IDs by reusing your ValidArgsFunction
 - share Bubble Tea form logic in a mix-in so both add and edit commands can re‐use the same FormModel code
 
 ==================================================
 cmd/cmdMigrate.go
   line 49     TODO   if successful, run `sqlboiler sqlite3`
+cmd/cmdTask.go
+  line 41     TODO   add subcmd to archive task
+  line 58     TODO   add graceful error on absence of arguments
+  line 96     TODO   include option to add start date
 ==================================================
