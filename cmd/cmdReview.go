@@ -103,7 +103,6 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// runReviewAdd drives a TUI wizard to gather and INSERT a new review.
 func runReviewAdd(_ *cobra.Command, _ []string) {
 	rev := &models.Review{}
 
@@ -111,10 +110,10 @@ func runReviewAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Task ID",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return strconv.ParseInt(s, 10, 64)
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Task").
@@ -124,7 +123,7 @@ func runReviewAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Week (optional)",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return null.Int64{}, nil
 				}
@@ -134,7 +133,7 @@ func runReviewAdd(_ *cobra.Command, _ []string) {
 				}
 				return null.Int64From(w), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Week").
@@ -144,10 +143,10 @@ func runReviewAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Summary (optional)",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return null.StringFrom(s), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Summary").
@@ -161,12 +160,11 @@ func runReviewAdd(_ *cobra.Command, _ []string) {
 	if err := rev.Insert(context.Background(), db.Conn, boil.Infer()); err != nil {
 		log.Fatalf("insert review: %v", err)
 	}
-	fmt.Printf("✅ Created review %d\n", rev.ID.Int64)
+	fmt.Printf("Created review %d\n", rev.ID.Int64)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// runReviewEdit renders a pre-seeded TUI wizard then UPDATEs the record.
 func runReviewEdit(_ *cobra.Command, args []string) {
 	rawID := args[0]
 	idNum, err := strconv.ParseInt(rawID, 10, 64)
@@ -184,10 +182,10 @@ func runReviewEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Task ID",
 			Initial: strconv.FormatInt(rev.Task, 10),
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return strconv.ParseInt(s, 10, 64)
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Task").
@@ -202,7 +200,7 @@ func runReviewEdit(_ *cobra.Command, args []string) {
 				}
 				return ""
 			}(),
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return null.Int64{}, nil
 				}
@@ -212,7 +210,7 @@ func runReviewEdit(_ *cobra.Command, args []string) {
 				}
 				return null.Int64From(w), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Week").
@@ -222,10 +220,10 @@ func runReviewEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Summary (optional)",
 			Initial: rev.Summary.String,
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return null.StringFrom(s), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Summary").
@@ -239,7 +237,7 @@ func runReviewEdit(_ *cobra.Command, args []string) {
 	if _, err := rev.Update(context.Background(), db.Conn, boil.Whitelist("task", "week", "summary")); err != nil {
 		log.Fatalf("update review: %v", err)
 	}
-	fmt.Printf("✅ Updated review %d\n", rev.ID.Int64)
+	fmt.Printf("Updated review %d\n", rev.ID.Int64)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

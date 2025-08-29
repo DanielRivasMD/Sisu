@@ -88,7 +88,6 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// runCalendarAdd launches a TUI to create a new calendar entry
 func runCalendarAdd(_ *cobra.Command, _ []string) {
 	entry := &models.Calendar{}
 
@@ -96,10 +95,10 @@ func runCalendarAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Date (YYYY-MM-DD)",
 			Initial: time.Now().Format("2006-01-02"),
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return time.Parse("2006-01-02", s)
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Date").
@@ -109,13 +108,13 @@ func runCalendarAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Note",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return nil, fmt.Errorf("note cannot be blank")
 				}
 				return s, nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Note").
@@ -129,12 +128,11 @@ func runCalendarAdd(_ *cobra.Command, _ []string) {
 	if err := entry.Insert(context.Background(), db.Conn, boil.Infer()); err != nil {
 		log.Fatalf("insert calendar entry: %v", err)
 	}
-	fmt.Printf("✅ Created calendar %d\n", entry.ID.Int64)
+	fmt.Printf("Created calendar %d\n", entry.ID.Int64)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// runCalendarEdit launches a TUI seeded from an existing record
 func runCalendarEdit(_ *cobra.Command, args []string) {
 	rawID := args[0]
 	idNum, err := strconv.ParseInt(rawID, 10, 64)
@@ -152,10 +150,10 @@ func runCalendarEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Date (YYYY-MM-DD)",
 			Initial: entry.Date.Format("2006-01-02"),
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return time.Parse("2006-01-02", s)
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Date").
@@ -165,13 +163,13 @@ func runCalendarEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Note",
 			Initial: entry.Note,
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return nil, fmt.Errorf("note cannot be blank")
 				}
 				return s, nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Note").
@@ -185,7 +183,7 @@ func runCalendarEdit(_ *cobra.Command, args []string) {
 	if _, err := entry.Update(context.Background(), db.Conn, boil.Whitelist("date", "note")); err != nil {
 		log.Fatalf("update calendar entry: %v", err)
 	}
-	fmt.Printf("✅ Updated calendar %d\n", entry.ID.Int64)
+	fmt.Printf("Updated calendar %d\n", entry.ID.Int64)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

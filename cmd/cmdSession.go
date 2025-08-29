@@ -38,7 +38,6 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// sessionCmd is the parent for all "session" subcommands
 var sessionCmd = &cobra.Command{
 	Use:   "session",
 	Short: "Manage work sessions",
@@ -119,6 +118,7 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// BUG: prompt task id
 // runSessionAdd launches a Bubble Tea form to gather session fields
 func runSessionAdd(_ *cobra.Command, _ []string) {
 	sess := &models.Session{}
@@ -127,10 +127,10 @@ func runSessionAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Task ID",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return strconv.ParseInt(s, 10, 64)
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				// TaskID is null.Int64
 				reflect.ValueOf(holder).
 					Elem().
@@ -141,14 +141,14 @@ func runSessionAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Session date (YYYY-MM-DD)",
 			Initial: time.Now().Format("2006-01-02"),
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				t, err := time.Parse("2006-01-02", s)
 				if err != nil {
 					return nil, err
 				}
 				return null.TimeFrom(t), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Date").
@@ -158,14 +158,14 @@ func runSessionAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Duration (minutes)",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				n, err := strconv.ParseInt(s, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				return null.Int64From(n), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("DurationMinutes").
@@ -175,14 +175,14 @@ func runSessionAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Score (1–5)",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				n, err := strconv.ParseInt(s, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				return null.Int64From(n), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Score").
@@ -192,10 +192,10 @@ func runSessionAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Notes (optional)",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return null.StringFrom(s), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Notes").
@@ -214,7 +214,6 @@ func runSessionAdd(_ *cobra.Command, _ []string) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// runSessionEdit launches a pre‐seeded Bubble Tea form and then updates
 func runSessionEdit(_ *cobra.Command, args []string) {
 	idNum, err := strconv.ParseInt(args[0], 10, 64)
 	if err != nil {
@@ -230,10 +229,10 @@ func runSessionEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Task ID",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return strconv.ParseInt(s, 10, 64)
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("TaskID").
@@ -243,14 +242,14 @@ func runSessionEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Session date (YYYY-MM-DD)",
 			Initial: time.Now().Format("2006-01-02"),
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				t, err := time.Parse("2006-01-02", s)
 				if err != nil {
 					return nil, err
 				}
 				return null.TimeFrom(t), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Date").
@@ -260,14 +259,14 @@ func runSessionEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Duration (minutes)",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				n, err := strconv.ParseInt(s, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				return null.Int64From(n), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("DurationMinutes").
@@ -277,14 +276,14 @@ func runSessionEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Score (1–5)",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				n, err := strconv.ParseInt(s, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				return null.Int64From(n), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Score").
@@ -294,10 +293,10 @@ func runSessionEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Notes (optional)",
 			Initial: sess.Notes.String,
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				return null.StringFrom(s), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Notes").
@@ -314,4 +313,3 @@ func runSessionEdit(_ *cobra.Command, args []string) {
 	fmt.Printf("Updated session %d\n", sess.ID.Int64)
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////

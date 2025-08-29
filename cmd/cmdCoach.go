@@ -91,7 +91,7 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// runCoachAdd launches a TUI to create a new coach record
+// BUG: date crash
 func runCoachAdd(_ *cobra.Command, _ []string) {
 	entry := &models.Coach{}
 
@@ -99,13 +99,13 @@ func runCoachAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Trigger (non-empty)",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return nil, fmt.Errorf("trigger cannot be blank")
 				}
 				return s, nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Trigger").
@@ -115,13 +115,13 @@ func runCoachAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Content (non-empty)",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return nil, fmt.Errorf("content cannot be blank")
 				}
 				return s, nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Content").
@@ -131,7 +131,7 @@ func runCoachAdd(_ *cobra.Command, _ []string) {
 		{
 			Label:   "Date (YYYY-MM-DD, optional)",
 			Initial: "",
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return null.Time{}, nil
 				}
@@ -141,7 +141,7 @@ func runCoachAdd(_ *cobra.Command, _ []string) {
 				}
 				return null.TimeFrom(t), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Date").
@@ -155,12 +155,11 @@ func runCoachAdd(_ *cobra.Command, _ []string) {
 	if err := entry.Insert(context.Background(), db.Conn, boil.Infer()); err != nil {
 		log.Fatalf("insert coach entry: %v", err)
 	}
-	fmt.Printf("✅ Created coach %d\n", entry.ID.Int64)
+	fmt.Printf("Created coach %d\n", entry.ID.Int64)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// runCoachEdit launches a pre-seeded TUI then UPDATEs the record
 func runCoachEdit(_ *cobra.Command, args []string) {
 	rawID := args[0]
 	idNum, err := strconv.ParseInt(rawID, 10, 64)
@@ -177,13 +176,13 @@ func runCoachEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Trigger",
 			Initial: entry.Trigger,
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return nil, fmt.Errorf("trigger cannot be blank")
 				}
 				return s, nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Trigger").
@@ -193,13 +192,13 @@ func runCoachEdit(_ *cobra.Command, args []string) {
 		{
 			Label:   "Content",
 			Initial: entry.Content,
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return nil, fmt.Errorf("content cannot be blank")
 				}
 				return s, nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Content").
@@ -211,7 +210,7 @@ func runCoachEdit(_ *cobra.Command, args []string) {
 			Initial: func() string {
 				return entry.Date.Format("2006-01-02")
 			}(),
-			Parse: func(s string) (interface{}, error) {
+			Parse: func(s string) (any, error) {
 				if s == "" {
 					return null.Time{}, nil
 				}
@@ -221,7 +220,7 @@ func runCoachEdit(_ *cobra.Command, args []string) {
 				}
 				return null.TimeFrom(t), nil
 			},
-			Assign: func(holder interface{}, v interface{}) {
+			Assign: func(holder any, v any) {
 				reflect.ValueOf(holder).
 					Elem().
 					FieldByName("Date").
@@ -235,7 +234,7 @@ func runCoachEdit(_ *cobra.Command, args []string) {
 	if _, err := entry.Update(context.Background(), db.Conn, boil.Whitelist("trigger", "content", "date")); err != nil {
 		log.Fatalf("update coach entry: %v", err)
 	}
-	fmt.Printf("✅ Updated coach %d\n", entry.ID.Int64)
+	fmt.Printf("Updated coach %d\n", entry.ID.Int64)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
