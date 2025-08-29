@@ -142,9 +142,7 @@ func runExport(cmd *cobra.Command, args []string) {
 					if m.Value.Valid {
 						val = strconv.FormatInt(m.Value.Int64, 10)
 					}
-					if m.Achieved.Valid {
-						ach = m.Achieved.Time.Format("2006-01-02")
-					}
+					ach = m.Achieved.Format("2006-01-02")
 					return []string{
 						strconv.FormatInt(m.ID.Int64, 10),
 						strconv.FormatInt(m.Task, 10),
@@ -184,9 +182,7 @@ func runExport(cmd *cobra.Command, args []string) {
 				models.Coaches(qm.OrderBy("id ASC")).All,
 				func(c *models.Coach) []string {
 					date := ""
-					if c.Date.Valid {
-						date = c.Date.Time.Format("2006-01-02")
-					}
+					date = c.Date.Format("2006-01-02")
 					return []string{
 						strconv.FormatInt(c.ID.Int64, 10),
 						c.Trigger,

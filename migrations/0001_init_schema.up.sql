@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS milestones (
 	task integer NOT NULL,
 	type text,
 	value integer,
-	achieved date,
+	achieved date NOT NULL,
 	message text,
 	FOREIGN KEY (task) REFERENCES tasks (id)
 );
@@ -48,7 +48,7 @@ CREATE TABLE coach (
 	id integer PRIMARY KEY AUTOINCREMENT,
 	trigger text NOT NULL,
 	content text NOT NULL,
-	date date NULL
+	date date NOT NULL
 );
 
 ----------------------------------------------------------------------------------------------------

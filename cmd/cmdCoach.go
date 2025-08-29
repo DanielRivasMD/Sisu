@@ -71,9 +71,7 @@ func init() {
 
 		Format: func(c *models.Coach) (int64, string) {
 			date := ""
-			if c.Date.Valid {
-				date = c.Date.Time.Format("2006-01-02")
-			}
+			date = c.Date.Format("2006-01-02")
 			return c.ID.Int64,
 				fmt.Sprintf("trigger=%s content=%s date=%s",
 					c.Trigger, c.Content, date,
@@ -211,10 +209,7 @@ func runCoachEdit(_ *cobra.Command, args []string) {
 		{
 			Label: "Date (YYYY-MM-DD, optional)",
 			Initial: func() string {
-				if entry.Date.Valid {
-					return entry.Date.Time.Format("2006-01-02")
-				}
-				return ""
+				return entry.Date.Format("2006-01-02")
 			}(),
 			Parse: func(s string) (interface{}, error) {
 				if s == "" {

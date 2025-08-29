@@ -90,9 +90,7 @@ func init() {
 
 			// Only show date if not zero
 			ach := ""
-			if !m.Achieved.Time.IsZero() {
-				ach = m.Achieved.Time.Format("2006-01-02")
-			}
+			ach = m.Achieved.Format("2006-01-02")
 
 			msg := m.Message.String
 
@@ -289,10 +287,7 @@ func runMilestoneEdit(_ *cobra.Command, args []string) {
 		{
 			Label: "Achieved date (YYYY-MM-DD, optional)",
 			Initial: func() string {
-				if m.Achieved.Valid {
-					return m.Achieved.Time.Format("2006-01-02")
-				}
-				return ""
+				return m.Achieved.Format("2006-01-02")
 			}(),
 			Parse: func(s string) (any, error) {
 				if s == "" {
