@@ -38,21 +38,23 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+var exportCmd = &cobra.Command{
+	Use:               "export [tables...]",
+	Short:             "Export one or more tables to CSV files",
+	Long:              helpExport,
+	Example:           exampleExport,
+	PersistentPreRun:  persistentPreRun,
+	PersistentPostRun: persistentPostRun,
+
+	Args: cobra.ArbitraryArgs,
+
+	Run: runExport,
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 var (
 	exportAll bool
-
-	exportCmd = &cobra.Command{
-		Use:               "export [tables...]",
-		Short:             "Export one or more tables to CSV files",
-		Long:              helpExport,
-		Example:           exampleExport,
-		PersistentPreRun:  persistentPreRun,
-		PersistentPostRun: persistentPostRun,
-
-		Args: cobra.ArbitraryArgs,
-
-		Run: runExport,
-	}
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -69,7 +71,7 @@ func runExport(cmd *cobra.Command, args []string) {
 		args = []string{"tasks", "sessions", "milestones", "reviews", "coach", "calendar"}
 	}
 	if len(args) == 0 {
-		cmd.Help()
+		horus.CheckErr(cmd.Help())
 		return
 	}
 
@@ -79,7 +81,7 @@ func runExport(cmd *cobra.Command, args []string) {
 	for _, table := range args {
 		switch table {
 		case "tasks":
-			horus.CheckErr(exportTable[*models.Task](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"tasks.csv",
 				[]string{"id", "name", "tag", "description", "date_target", "date_start", "archived"},
@@ -105,7 +107,7 @@ func runExport(cmd *cobra.Command, args []string) {
 			))
 
 		case "sessions":
-			horus.CheckErr(exportTable[*models.Session](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"sessions.csv",
 				[]string{"id", "task", "date", "duration_mins", "score_feedback", "notes"},
@@ -130,7 +132,7 @@ func runExport(cmd *cobra.Command, args []string) {
 			))
 
 		case "milestones":
-			horus.CheckErr(exportTable[*models.Milestone](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"milestones.csv",
 				[]string{"id", "task", "type", "value", "achieved", "message"},
@@ -155,7 +157,7 @@ func runExport(cmd *cobra.Command, args []string) {
 			))
 
 		case "reviews":
-			horus.CheckErr(exportTable[*models.Review](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"reviews.csv",
 				[]string{"id", "task", "week", "summary"},
@@ -175,7 +177,7 @@ func runExport(cmd *cobra.Command, args []string) {
 			))
 
 		case "coach":
-			horus.CheckErr(exportTable[*models.Coach](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"coach.csv",
 				[]string{"id", "trigger", "content", "date"},
@@ -195,7 +197,7 @@ func runExport(cmd *cobra.Command, args []string) {
 			))
 
 		case "calendar":
-			horus.CheckErr(exportTable[*models.Calendar](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"calendar.csv",
 				[]string{"id", "date", "note"},
