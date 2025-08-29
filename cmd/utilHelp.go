@@ -39,14 +39,8 @@ var helpRoot = formatHelp(
 var helpMigrate = formatHelp(
 	"Daniel Rivas",
 	"<danielrivasmd@gmail.com>",
-	"Runs every pending `.up.sql` migration against SQLite database"+
+	"Runs every pending `.up.sql` migration against SQLite database\n"+
 		"If the database file does not exist yet, it will be created automatically",
-)
-
-var helpTrack = formatHelp(
-	"Daniel Rivas",
-	"<danielrivasmd@gmail.com>",
-	"",
 )
 
 var helpTask = formatHelp(
@@ -59,6 +53,14 @@ var helpMilestone = formatHelp(
 	"Daniel Rivas",
 	"<danielrivasmd@gmail.com>",
 	"Used for incentives, streaks, or mastery checkpoints",
+)
+
+var helpExport = formatHelp(
+	"Daniel Rivas",
+	"<danielrivasmd@gmail.com>",
+	"Export specified tables from the database into CSV files in the current working directory\n"+
+		"Supported tables: tasks, sessions, milestones, reviews, coach, calendar\n"+
+		"Use --all to export every supported table",
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

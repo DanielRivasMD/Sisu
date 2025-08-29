@@ -61,11 +61,6 @@ var exampleMigrate = formatExample(
 	[]string{"migrate"},
 )
 
-var exampleTrack = formatExample(
-	"sisu",
-	[]string{"track"},
-)
-
 var exampleTask = formatExample(
 	"sisu",
 	[]string{"track"},
@@ -74,6 +69,14 @@ var exampleTask = formatExample(
 var exampleMilestone = formatExample(
 	"sisu",
 	[]string{"milestone"},
+)
+
+var exampleExport = formatExample(
+	"sisu",
+	[]string{"export"},
+	[]string{"sisu", "export", "tasks"},
+	[]string{"sisu", "export", "sessions", "reviews"},
+	[]string{"sisu", "export", "--all"},
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
