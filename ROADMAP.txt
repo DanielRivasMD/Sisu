@@ -1,5 +1,4 @@
 - resolve embedding! => `sisu` can only be used now from developer path
-- load default values for coach, milestone, review & calendar
 - add a profile to set frequency & other params => intense - everyday, chilled - twice a week, etc
 - use error handling => `horus`
 - add shell completion for rm IDs by reusing your ValidArgsFunction
@@ -9,4 +8,6 @@
 ==================================================
 cmd/cmdMigrate.go
   line 49     TODO   if successful, run `sqlboiler sqlite3`
+cmd/cmdTask.go
+  line 187    TODO   update message
 ==================================================
