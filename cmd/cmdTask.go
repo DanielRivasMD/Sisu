@@ -115,6 +115,10 @@ func init() {
 func runTaskAdd(_ *cobra.Command, _ []string) {
 	task := &models.Task{}
 
+	// Defaults
+	today := time.Now().Format("2006-01-02")
+	plus100 := time.Now().AddDate(0, 0, 100).Format("2006-01-02")
+
 	fields := []Field{
 		// name (required)
 		{
@@ -141,7 +145,7 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 		// target (optional datetime → null.Time)
 		{
 			Label:    "Target date (YYYY-MM-DD, optional)",
-			Initial:  "",
+			Initial:  plus100,
 			Validate: VDateOptional(),
 			Parse:    ParseOptDate,
 			Assign:   func(h any, v any) { Assign("Target", h, v) },
@@ -149,7 +153,7 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 		// start (optional datetime → null.Time)
 		{
 			Label:    "Start date (YYYY-MM-DD, optional)",
-			Initial:  "",
+			Initial:  today,
 			Validate: VDateOptional(),
 			Parse:    ParseOptDate,
 			Assign:   func(h any, v any) { Assign("Start", h, v) },
