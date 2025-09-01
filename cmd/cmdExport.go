@@ -45,19 +45,13 @@ var exportCmd = &cobra.Command{
 	Example:           exampleExport,
 	PersistentPreRun:  persistentPreRun,
 	PersistentPostRun: persistentPostRun,
-
-	Args: cobra.ArbitraryArgs,
-
-	Run: runExport,
+	Args:              cobra.ArbitraryArgs,
+	Run:               runExport,
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 var (
 	exportAll bool
 )
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func init() {
 	rootCmd.AddCommand(exportCmd)
@@ -80,82 +74,95 @@ func runExport(cmd *cobra.Command, args []string) {
 
 	for _, table := range args {
 		switch table {
+
+		// tasks: target/start are nullable datetimes; tag/description nullable text
 		case "tasks":
-			horus.CheckErr(exportTable(
+			horus.CheckErr(exportTable[*models.Task, models.TaskSlice](
 				ctx, exec,
 				"tasks.csv",
-				[]string{"id", "name", "tag", "description", "date_target", "date_start", "archived"},
+				[]string{"id", "name", "tag", "description", "target", "start", "archived"},
 				models.Tasks(qm.OrderBy("id ASC")).All,
 				func(t *models.Task) []string {
-					dt, ds := "", ""
-					if t.DateTarget.Valid {
-						dt = t.DateTarget.Time.Format(time.RFC3339)
+					target, start := "", ""
+					if t.Target.Valid {
+						target = t.Target.Time.Format(time.RFC3339)
 					}
-					if t.DateStart.Valid {
-						ds = t.DateStart.Time.Format(time.RFC3339)
+					if t.Start.Valid {
+						start = t.Start.Time.Format(time.RFC3339)
 					}
 					return []string{
 						strconv.FormatInt(t.ID.Int64, 10),
 						t.Name,
 						t.Tag.String,
 						t.Description.String,
-						dt,
-						ds,
+						target,
+						start,
 						strconv.FormatBool(t.Archived.Bool),
 					}
 				},
 			))
 
+		// sessions: date nullable, mins/feedback nullable ints, notes nullable text
 		case "sessions":
-			horus.CheckErr(exportTable(
+			horus.CheckErr(exportTable[*models.Session, models.SessionSlice](
 				ctx, exec,
 				"sessions.csv",
-				[]string{"id", "task", "date", "duration_mins", "score_feedback", "notes"},
+				[]string{"id", "task", "date", "mins", "feedback", "notes"},
 				models.Sessions(qm.OrderBy("id ASC")).All,
 				func(s *models.Session) []string {
-					dur, score := "", ""
-					if s.DurationMins.Valid {
-						dur = strconv.FormatInt(s.DurationMins.Int64, 10)
+					date := ""
+					if s.Date.Valid {
+						date = s.Date.Time.Format("2006-01-02")
 					}
-					if s.ScoreFeedback.Valid {
-						score = strconv.FormatInt(s.ScoreFeedback.Int64, 10)
+					mins := ""
+					if s.Mins.Valid {
+						mins = strconv.FormatInt(s.Mins.Int64, 10)
+					}
+					fb := ""
+					if s.Feedback.Valid {
+						fb = strconv.FormatInt(s.Feedback.Int64, 10)
 					}
 					return []string{
 						strconv.FormatInt(s.ID.Int64, 10),
 						strconv.FormatInt(s.Task, 10),
-						s.Date.Format("2006-01-02"),
-						dur,
-						score,
+						date,
+						mins,
+						fb,
 						s.Notes.String,
 					}
 				},
 			))
 
+		// milestones: done nullable date, value nullable int, type/message nullable text
 		case "milestones":
-			horus.CheckErr(exportTable(
+			horus.CheckErr(exportTable[*models.Milestone, models.MilestoneSlice](
 				ctx, exec,
 				"milestones.csv",
-				[]string{"id", "task", "type", "value", "achieved", "message"},
+				[]string{"id", "task", "type", "value", "done", "message"},
 				models.Milestones(qm.OrderBy("id ASC")).All,
 				func(m *models.Milestone) []string {
-					val, ach := "", ""
+					done := ""
+					if m.Done.Valid {
+						done = m.Done.Time.Format("2006-01-02")
+					}
+					val := ""
 					if m.Value.Valid {
 						val = strconv.FormatInt(m.Value.Int64, 10)
 					}
-					ach = m.Achieved.Format("2006-01-02")
 					return []string{
 						strconv.FormatInt(m.ID.Int64, 10),
 						strconv.FormatInt(m.Task, 10),
 						m.Type.String,
 						val,
-						ach,
+						done,
 						m.Message.String,
 					}
 				},
 			))
 
+		// reviews: week nullable int, summary nullable text
 		case "reviews":
-			horus.CheckErr(exportTable(
+			horus.CheckErr(exportTable[*models.Review, models.ReviewSlice](
 				ctx, exec,
 				"reviews.csv",
 				[]string{"id", "task", "week", "summary"},
@@ -174,15 +181,18 @@ func runExport(cmd *cobra.Command, args []string) {
 				},
 			))
 
+		// coach: date nullable
 		case "coach":
-			horus.CheckErr(exportTable(
+			horus.CheckErr(exportTable[*models.Coach, models.CoachSlice](
 				ctx, exec,
 				"coach.csv",
 				[]string{"id", "trigger", "content", "date"},
 				models.Coaches(qm.OrderBy("id ASC")).All,
 				func(c *models.Coach) []string {
 					date := ""
-					date = c.Date.Format("2006-01-02")
+					if c.Date.Valid {
+						date = c.Date.Time.Format("2006-01-02")
+					}
 					return []string{
 						strconv.FormatInt(c.ID.Int64, 10),
 						c.Trigger,
@@ -192,16 +202,21 @@ func runExport(cmd *cobra.Command, args []string) {
 				},
 			))
 
+		// calendar: date nullable, note required
 		case "calendar":
-			horus.CheckErr(exportTable(
+			horus.CheckErr(exportTable[*models.Calendar, models.CalendarSlice](
 				ctx, exec,
 				"calendar.csv",
 				[]string{"id", "date", "note"},
 				models.Calendars(qm.OrderBy("id ASC")).All,
 				func(c *models.Calendar) []string {
+					date := ""
+					if c.Date.Valid {
+						date = c.Date.Time.Format("2006-01-02")
+					}
 					return []string{
 						strconv.FormatInt(c.ID.Int64, 10),
-						c.Date.Format("2006-01-02"),
+						date,
 						c.Note,
 					}
 				},
@@ -216,10 +231,7 @@ func runExport(cmd *cobra.Command, args []string) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // exportTable exports any SQLBoiler slice type S whose elements are T.
-//
-//	S must be a defined slice type with underlying []T (e.g. models.CoachSlice ~ []*models.Coach)
-//	fetchFn must match S’s All() signature.
-//	formatFn turns each T → []string for CSV writing.
+// S must be a defined slice type with underlying []T (e.g., models.TaskSlice ~ []*models.Task).
 func exportTable[T any, S ~[]T](
 	ctx context.Context,
 	exec boil.ContextExecutor,
