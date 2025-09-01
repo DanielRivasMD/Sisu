@@ -23,9 +23,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/aarondl/null/v8"
 	"github.com/aarondl/sqlboiler/v4/boil"
@@ -37,6 +35,11 @@ import (
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Schema (calendar):
+//   id INTEGER PK
+//   date DATE            → null.Time (nullable)
+//   note TEXT NOT NULL   → string
 
 var calendarCmd = &cobra.Command{
 	Use:   "calendar",
@@ -70,9 +73,11 @@ func init() {
 		},
 
 		Format: func(c *models.Calendar) (int64, string) {
-			date := c.Date.Format("2006-01-02")
-			return c.ID.Int64,
-				fmt.Sprintf("date=%s note=%s", date, c.Note)
+			date := ""
+			if c.Date.Valid {
+				date = c.Date.Time.Format("2006-01-02")
+			}
+			return c.ID.Int64, fmt.Sprintf("date=%s note=%s", date, c.Note)
 		},
 
 		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
@@ -92,35 +97,10 @@ func runCalendarAdd(_ *cobra.Command, _ []string) {
 	entry := &models.Calendar{}
 
 	fields := []Field{
-		{
-			Label:   "Date (YYYY-MM-DD)",
-			Initial: time.Now().Format("2006-01-02"),
-			Parse: func(s string) (any, error) {
-				return time.Parse("2006-01-02", s)
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Date").
-					Set(reflect.ValueOf(v.(time.Time)))
-			},
-		},
-		{
-			Label:   "Note",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return nil, fmt.Errorf("note cannot be blank")
-				}
-				return s, nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Note").
-					SetString(v.(string))
-			},
-		},
+		// date is nullable in schema → optional date (null.Time)
+		FOptDate("Date (YYYY-MM-DD, optional)", "Date", ""),
+		// note is required text
+		FString("Note", "Note", ""),
 	}
 
 	RunFormWizard(fields, entry)
@@ -139,43 +119,22 @@ func runCalendarEdit(_ *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("invalid calendar ID %q: %v", rawID, err)
 	}
-	id := null.Int64From(idNum)
 
-	entry, err := models.FindCalendar(context.Background(), db.Conn, id)
+	entry, err := models.FindCalendar(context.Background(), db.Conn, null.Int64From(idNum))
 	if err != nil {
-		log.Fatalf("find calendar %d: %v", id, err)
+		log.Fatalf("find calendar %d: %v", idNum, err)
 	}
 
 	fields := []Field{
-		{
-			Label:   "Date (YYYY-MM-DD)",
-			Initial: entry.Date.Format("2006-01-02"),
-			Parse: func(s string) (any, error) {
-				return time.Parse("2006-01-02", s)
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Date").
-					Set(reflect.ValueOf(v.(time.Time)))
-			},
-		},
-		{
-			Label:   "Note",
-			Initial: entry.Note,
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return nil, fmt.Errorf("note cannot be blank")
+		FOptDate("Date (YYYY-MM-DD, optional)", "Date",
+			func() string {
+				if entry.Date.Valid {
+					return entry.Date.Time.Format("2006-01-02")
 				}
-				return s, nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Note").
-					SetString(v.(string))
-			},
-		},
+				return ""
+			}(),
+		),
+		FString("Note", "Note", entry.Note),
 	}
 
 	RunFormWizard(fields, entry)
