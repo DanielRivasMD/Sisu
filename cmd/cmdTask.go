@@ -23,7 +23,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -38,13 +37,20 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: add subcmd to archive task
-var taskCmd = &cobra.Command{
-	Use:     "task",
-	Short:   "Manage tasks",
-	Long:    helpTask,
-	Example: exampleTask,
+// Schema (tasks):
+//   - id integer PK
+//   - name text NOT NULL            → string
+//   - tag text                      → null.String
+//   - description text              → null.String
+//   - target datetime               → null.Time
+//   - start datetime                → null.Time
+//   - archived boolean DEFAULT FALSE → null.Bool (likely; confirm after regen)
 
+var taskCmd = &cobra.Command{
+	Use:               "task",
+	Short:             "Manage tasks",
+	Long:              helpTask,
+	Example:           exampleTask,
 	PersistentPreRun:  persistentPreRun,
 	PersistentPostRun: persistentPostRun,
 }
@@ -55,10 +61,10 @@ var taskAddCmd = &cobra.Command{
 	Run:   runTaskAdd,
 }
 
-// TODO: add graceful error on absence of arguments
 var taskEditCmd = &cobra.Command{
-	Use:   "edit",
-	Short: "Interactive TUI to edit task",
+	Use:   "edit [id]",
+	Short: "Interactive TUI to edit a task",
+	Args:  cobra.ExactArgs(1),
 	Run:   runTaskEdit,
 }
 
@@ -71,97 +77,93 @@ func init() {
 	RegisterCrudSubcommands(taskCmd, "sisu.db", CrudModel[*models.Task]{
 		Singular: "task",
 
-		ListFn: func(ctx context.Context, db *sql.DB) ([]*models.Task, error) {
-			return models.Tasks(qm.OrderBy("id ASC")).All(ctx, db)
+		ListFn: func(ctx context.Context, conn *sql.DB) ([]*models.Task, error) {
+			return models.Tasks(qm.OrderBy("id ASC")).All(ctx, conn)
 		},
 
 		Format: func(t *models.Task) (int64, string) {
-			return t.ID.Int64, fmt.Sprintf("%s (archived=%v)", t.Name, t.Archived.Bool)
+			// optional fields
+			tag := t.Tag.String
+			desc := t.Description.String
+			target := ""
+			if t.Target.Valid {
+				target = t.Target.Time.Format(time.RFC3339)
+			}
+			start := ""
+			if t.Start.Valid {
+				start = t.Start.Time.Format(time.RFC3339)
+			}
+			return t.ID.Int64, fmt.Sprintf(
+				"name=%s tag=%s target=%s start=%s archived=%v desc=%s",
+				t.Name, tag, target, start, t.Archived.Bool, desc,
+			)
 		},
 
-		RemoveFn: func(ctx context.Context, db *sql.DB, id int64) error {
-			task, err := models.FindTask(ctx, db, null.Int64From(id))
+		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
+			task, err := models.FindTask(ctx, conn, null.Int64From(id))
 			if err != nil {
 				return err
 			}
-			_, err = task.Delete(ctx, db)
+			_, err = task.Delete(ctx, conn)
 			return err
 		},
 	})
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: include option to add start date
-func runTaskAdd(_ *cobra.Command, args []string) {
+func runTaskAdd(_ *cobra.Command, _ []string) {
 	task := &models.Task{}
 
 	fields := []Field{
+		// name (required)
 		{
-			Label:   "Task name",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return nil, fmt.Errorf("name cannot be blank")
-				}
-				return s, nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Name").
-					SetString(v.(string))
-			},
+			Label:    "Task name",
+			Initial:  "",
+			Validate: VRequired("Task name"),
+			Parse:    ParseNonEmpty("Task name"),
+			Assign:   func(h any, v any) { AssignString("Name", h, v) },
 		},
+		// tag (optional)
 		{
 			Label:   "Tag (optional)",
 			Initial: "",
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Tag").
-					Set(reflect.ValueOf(v))
-			},
+			Parse:   ParseOptString,
+			Assign:  func(h any, v any) { Assign("Tag", h, v) },
 		},
+		// description (optional)
 		{
 			Label:   "Description (optional)",
 			Initial: "",
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Description").
-					Set(reflect.ValueOf(v))
-			},
+			Parse:   ParseOptString,
+			Assign:  func(h any, v any) { Assign("Description", h, v) },
 		},
+		// target (optional datetime → null.Time)
 		{
-			Label:   "Target date (YYYY-MM-DD)",
-			Initial: time.Now().Format("2006-01-02"),
-			Parse: func(s string) (any, error) {
-				t, err := time.Parse("2006-01-02", s)
-				if err != nil {
-					return nil, err
-				}
-				return null.TimeFrom(t), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("DateTarget").
-					Set(reflect.ValueOf(v))
-			},
+			Label:    "Target date (YYYY-MM-DD, optional)",
+			Initial:  "",
+			Validate: VDateOptional(),
+			Parse:    ParseOptDate,
+			Assign:   func(h any, v any) { Assign("Target", h, v) },
 		},
+		// start (optional datetime → null.Time)
+		{
+			Label:    "Start date (YYYY-MM-DD, optional)",
+			Initial:  "",
+			Validate: VDateOptional(),
+			Parse:    ParseOptDate,
+			Assign:   func(h any, v any) { Assign("Start", h, v) },
+		},
+		// {
+		//  Label:   "Archived (true/false, optional)",
+		//  Initial: "",
+		//  Parse:   ParseBool,               // returns bool
+		//  Assign:  func(h any, v any) { Assign("Archived", h, null.BoolFrom(v.(bool))) },
+		// },
 	}
 
 	RunFormWizard(fields, task)
 
-	// Persist via your db package
 	if err := task.Insert(context.Background(), db.Conn, boil.Infer()); err != nil {
 		log.Fatalf("insert task: %v", err)
 	}
@@ -171,80 +173,75 @@ func runTaskAdd(_ *cobra.Command, args []string) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func runTaskEdit(_ *cobra.Command, args []string) {
-	// 1) parse the CLI‐arg into an int64
 	rawID := args[0]
 	idNum, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil {
 		log.Fatalf("invalid task ID %q: %v", rawID, err)
 	}
-
-	// 2) wrap into a null.Int64
-	id := null.Int64From(idNum)
-
-	// 3) call FindTask with a null.Int64
-	task, err := models.FindTask(context.Background(), db.Conn, id)
+	task, err := models.FindTask(context.Background(), db.Conn, null.Int64From(idNum))
 	if err != nil {
 		log.Fatalf("couldn't find task %d: %v", idNum, err)
 	}
 
-	// 4) seed and run the form wizard just like Add
 	fields := []Field{
+		// name (required)
 		{
-			Label:   "Task name",
-			Initial: task.Name,
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return nil, fmt.Errorf("name cannot be blank")
-				}
-				return s, nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).Elem().FieldByName("Name").
-					SetString(v.(string))
-			},
+			Label:    "Task name",
+			Initial:  task.Name,
+			Validate: VRequired("Task name"),
+			Parse:    ParseNonEmpty("Task name"),
+			Assign:   func(h any, v any) { AssignString("Name", h, v) },
 		},
+		// tag (optional)
 		{
 			Label:   "Tag (optional)",
 			Initial: task.Tag.String,
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).Elem().FieldByName("Tag").
-					Set(reflect.ValueOf(v))
-			},
+			Parse:   ParseOptString,
+			Assign:  func(h any, v any) { Assign("Tag", h, v) },
 		},
+		// description (optional)
 		{
 			Label:   "Description (optional)",
 			Initial: task.Description.String,
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).Elem().FieldByName("Description").
-					Set(reflect.ValueOf(v))
-			},
+			Parse:   ParseOptString,
+			Assign:  func(h any, v any) { Assign("Description", h, v) },
 		},
+		// target (optional datetime)
 		{
-			Label:   "Target date (YYYY-MM-DD)",
-			Initial: task.DateTarget.Time.Format("2006-01-02"),
-			Parse: func(s string) (any, error) {
-				t, err := time.Parse("2006-01-02", s)
-				if err != nil {
-					return nil, err
+			Label: "Target date (YYYY-MM-DD, optional)",
+			Initial: func() string {
+				if task.Target.Valid {
+					return task.Target.Time.Format("2006-01-02")
 				}
-				return null.TimeFrom(t), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).Elem().FieldByName("DateTarget").
-					Set(reflect.ValueOf(v))
-			},
+				return ""
+			}(),
+			Validate: VDateOptional(),
+			Parse:    ParseOptDate,
+			Assign:   func(h any, v any) { Assign("Target", h, v) },
 		},
+		// start (optional datetime)
+		{
+			Label: "Start date (YYYY-MM-DD, optional)",
+			Initial: func() string {
+				if task.Start.Valid {
+					return task.Start.Time.Format("2006-01-02")
+				}
+				return ""
+			}(),
+			Validate: VDateOptional(),
+			Parse:    ParseOptDate,
+			Assign:   func(h any, v any) { Assign("Start", h, v) },
+		},
+		// {
+		//  Label:   "Archived (true/false, optional)",
+		//  Initial: strconv.FormatBool(task.Archived.Bool),
+		//  Parse:   ParseBool,
+		//  Assign:  func(h any, v any) { Assign("Archived", h, null.BoolFrom(v.(bool))) },
+		// },
 	}
 
 	RunFormWizard(fields, task)
 
-	// 5) persist with Update
 	if _, err := task.Update(context.Background(), db.Conn, boil.Infer()); err != nil {
 		log.Fatalf("update failed: %v", err)
 	}
