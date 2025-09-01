@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS tasks (
 	name text NOT NULL,
 	tag text,
 	description text,
-	date_target datetime,
-	date_start datetime DEFAULT CURRENT_TIMESTAMP,
+	target datetime,
+	start datetime,
 	archived boolean DEFAULT FALSE
 );
 
@@ -16,9 +16,9 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE TABLE IF NOT EXISTS sessions (
 	id integer PRIMARY KEY AUTOINCREMENT,
 	task integer NOT NULL,
-	date date NOT NULL,
-	duration_mins integer,
-	score_feedback integer,
+	date date,
+	mins integer,
+	feedback integer,
 	notes text,
 	FOREIGN KEY (task) REFERENCES tasks (id)
 );
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS milestones (
 	task integer NOT NULL,
 	type text,
 	value integer,
-	achieved date NOT NULL,
+	done date,
 	message text,
 	FOREIGN KEY (task) REFERENCES tasks (id)
 );
@@ -48,13 +48,13 @@ CREATE TABLE coach (
 	id integer PRIMARY KEY AUTOINCREMENT,
 	trigger text NOT NULL,
 	content text NOT NULL,
-	date date NOT NULL
+	date date
 );
 
 ----------------------------------------------------------------------------------------------------
 CREATE TABLE calendar (
 	id integer PRIMARY KEY AUTOINCREMENT,
-	date date NOT NULL,
+	date date,
 	note text NOT NULL
 );
 
