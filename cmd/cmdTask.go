@@ -184,6 +184,7 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 			},
 		},
 
+		// TODO: update message
 		// target (optional datetime → null.Time) defaults to today + 100 days
 		{
 			Label:    "Target date (YYYY-MM-DD, optional)",
@@ -263,19 +264,6 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 			Parse:   ParseOptString,
 			Assign:  func(h any, v any) { Assign("Description", h, v) },
 		},
-		// target (optional datetime)
-		{
-			Label: "Target date (YYYY-MM-DD, optional)",
-			Initial: func() string {
-				if task.Target.Valid {
-					return task.Target.Time.Format("2006-01-02")
-				}
-				return ""
-			}(),
-			Validate: VDateOptional(),
-			Parse:    ParseOptDate,
-			Assign:   func(h any, v any) { Assign("Target", h, v) },
-		},
 		// start (optional datetime)
 		{
 			Label: "Start date (YYYY-MM-DD, optional)",
@@ -288,6 +276,19 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 			Validate: VDateOptional(),
 			Parse:    ParseOptDate,
 			Assign:   func(h any, v any) { Assign("Start", h, v) },
+		},
+		// target (optional datetime)
+		{
+			Label: "Target date (YYYY-MM-DD, optional)",
+			Initial: func() string {
+				if task.Target.Valid {
+					return task.Target.Time.Format("2006-01-02")
+				}
+				return ""
+			}(),
+			Validate: VDateOptional(),
+			Parse:    ParseOptDate,
+			Assign:   func(h any, v any) { Assign("Target", h, v) },
 		},
 		// {
 		//  Label:   "Archived (true/false, optional)",
