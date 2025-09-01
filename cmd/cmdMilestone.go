@@ -23,16 +23,11 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/aarondl/null/v8"
 	"github.com/aarondl/sqlboiler/v4/boil"
 	"github.com/aarondl/sqlboiler/v4/queries/qm"
-	_ "github.com/golang-migrate/migrate/v4/database/sqlite"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
 
 	"github.com/DanielRivasMD/Sisu/db"
@@ -41,12 +36,19 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-var milestoneCmd = &cobra.Command{
-	Use:     "milestone",
-	Short:   "Manage milestones",
-	Long:    helpMilestone,
-	Example: exampleMilestone,
+// Schema (milestones):
+//   id INTEGER PK
+//   task INTEGER NOT NULL   → int64 (required)
+//   type TEXT               → null.String (optional)
+//   value INTEGER           → null.Int64 (optional)
+//   done DATE               → null.Time (optional)
+//   message TEXT            → null.String (optional)
 
+var milestoneCmd = &cobra.Command{
+	Use:               "milestone",
+	Short:             "Manage milestones",
+	Long:              helpMilestone,
+	Example:           exampleMilestone,
 	PersistentPreRun:  persistentPreRun,
 	PersistentPostRun: persistentPostRun,
 }
@@ -58,8 +60,9 @@ var milestoneAddCmd = &cobra.Command{
 }
 
 var milestoneEditCmd = &cobra.Command{
-	Use:   "edit",
-	Short: "Interactive TUI to edit milestone",
+	Use:   "edit [id]",
+	Short: "Interactive TUI to edit a milestone",
+	Args:  cobra.ExactArgs(1),
 	Run:   runMilestoneEdit,
 }
 
@@ -72,137 +75,49 @@ func init() {
 	RegisterCrudSubcommands(milestoneCmd, "sisu.db", CrudModel[*models.Milestone]{
 		Singular: "milestone",
 
-		// 1. ListFn returns all milestones
-		ListFn: func(ctx context.Context, db *sql.DB) ([]*models.Milestone, error) {
-			return models.Milestones(
-				qm.OrderBy("id ASC"),
-			).All(ctx, db)
+		ListFn: func(ctx context.Context, conn *sql.DB) ([]*models.Milestone, error) {
+			return models.Milestones(qm.OrderBy("id ASC")).All(ctx, conn)
 		},
 
-		// 2. Format for display in "list"
 		Format: func(m *models.Milestone) (int64, string) {
-			// Task is an int64
-			taskID := m.Task
-
-			// Type, Value, Message, Achieved are nullable wrappers
-			typ := m.Type.String
-			value := m.Value.Int64
-
-			// Only show date if not zero
-			ach := ""
-			ach = m.Achieved.Format("2006-01-02")
-
-			msg := m.Message.String
-
+			val := ""
+			if m.Value.Valid {
+				val = strconv.FormatInt(m.Value.Int64, 10)
+			}
+			done := ""
+			if m.Done.Valid {
+				done = m.Done.Time.Format("2006-01-02")
+			}
 			return m.ID.Int64, fmt.Sprintf(
-				"task=%d type=%s value=%d achieved=%s msg=%s",
-				taskID, typ, value, ach, msg,
+				"task=%d type=%s value=%s done=%s msg=%s",
+				m.Task, m.Type.String, val, done, m.Message.String,
 			)
 		},
 
-		// 4. RemoveFn deletes by PK
-		RemoveFn: func(ctx context.Context, db *sql.DB, id int64) error {
-			m, err := models.FindMilestone(ctx, db, null.Int64From(id))
+		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
+			row, err := models.FindMilestone(ctx, conn, null.Int64From(id))
 			if err != nil {
 				return err
 			}
-			_, err = m.Delete(ctx, db)
+			_, err = row.Delete(ctx, conn)
 			return err
 		},
 	})
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// BUG: date capture crash
-func runMilestoneAdd(_ *cobra.Command, args []string) {
+func runMilestoneAdd(_ *cobra.Command, _ []string) {
 	m := &models.Milestone{}
 
 	fields := []Field{
-		{
-			Label:   "Task ID",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				id, err := strconv.ParseInt(s, 10, 64)
-				if err != nil {
-					return nil, fmt.Errorf("invalid task ID: %w", err)
-				}
-				return id, nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Task").
-					SetInt(v.(int64))
-			},
-		},
-		{
-			Label:   "Type (optional)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Type").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Value (optional)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return null.Int64{}, nil
-				}
-				v, err := strconv.ParseInt(s, 10, 64)
-				if err != nil {
-					return nil, fmt.Errorf("invalid value: %w", err)
-				}
-				return null.Int64From(v), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Value").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Achieved date (YYYY-MM-DD, optional)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return null.Time{}, nil
-				}
-				t, err := time.Parse("2006-01-02", s)
-				if err != nil {
-					return nil, err
-				}
-				return null.TimeFrom(t), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Achieved").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Message (optional)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Message").
-					Set(reflect.ValueOf(v))
-			},
-		},
+		// required task FK
+		FInt("Task ID", "Task", ""),
+		// optional fields
+		FOptString("Type (optional)", "Type", ""),
+		FOptInt("Value (optional)", "Value", ""),
+		FOptDate("Done date (YYYY-MM-DD, optional)", "Done", ""),
+		FOptString("Message (optional)", "Message", ""),
 	}
 
 	RunFormWizard(fields, m)
@@ -216,110 +131,36 @@ func runMilestoneAdd(_ *cobra.Command, args []string) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func runMilestoneEdit(_ *cobra.Command, args []string) {
-	raw := args[0]
-	idNum, err := strconv.ParseInt(raw, 10, 64)
+	idNum, err := strconv.ParseInt(args[0], 10, 64)
 	if err != nil {
-		log.Fatalf("invalid milestone ID %q: %v", raw, err)
+		log.Fatalf("invalid milestone ID %q: %v", args[0], err)
 	}
 
-	// FindMilestone expects null.Int64
-	idNull := null.Int64From(idNum)
-	m, err := models.FindMilestone(context.Background(), db.Conn, idNull)
+	m, err := models.FindMilestone(context.Background(), db.Conn, null.Int64From(idNum))
 	if err != nil {
 		log.Fatalf("find milestone %d: %v", idNum, err)
 	}
 
 	fields := []Field{
-		{
-			Label:   "Task ID",
-			Initial: strconv.FormatInt(m.Task, 10),
-			Parse: func(s string) (any, error) {
-				id, err := strconv.ParseInt(s, 10, 64)
-				if err != nil {
-					return nil, fmt.Errorf("invalid task ID: %w", err)
-				}
-				return id, nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Task").
-					SetInt(v.(int64))
-			},
-		},
-		{
-			Label:   "Type (optional)",
-			Initial: m.Type.String,
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Type").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label: "Value (optional)",
-			Initial: func() string {
+		FInt("Task ID", "Task", strconv.FormatInt(m.Task, 10)),
+		FOptString("Type (optional)", "Type", m.Type.String),
+		FOptInt("Value (optional)", "Value",
+			func() string {
 				if m.Value.Valid {
 					return strconv.FormatInt(m.Value.Int64, 10)
 				}
 				return ""
 			}(),
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return null.Int64{}, nil
+		),
+		FOptDate("Done date (YYYY-MM-DD, optional)", "Done",
+			func() string {
+				if m.Done.Valid {
+					return m.Done.Time.Format("2006-01-02")
 				}
-				v, err := strconv.ParseInt(s, 10, 64)
-				if err != nil {
-					return nil, fmt.Errorf("invalid value: %w", err)
-				}
-				return null.Int64From(v), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Value").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label: "Achieved date (YYYY-MM-DD, optional)",
-			Initial: func() string {
-				return m.Achieved.Format("2006-01-02")
+				return ""
 			}(),
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return null.Time{}, nil
-				}
-				t, err := time.Parse("2006-01-02", s)
-				if err != nil {
-					return nil, err
-				}
-				return null.TimeFrom(t), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Achieved").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Message (optional)",
-			Initial: m.Message.String,
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Message").
-					Set(reflect.ValueOf(v))
-			},
-		},
+		),
+		FOptString("Message (optional)", "Message", m.Message.String),
 	}
 
 	RunFormWizard(fields, m)
