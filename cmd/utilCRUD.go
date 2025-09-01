@@ -111,12 +111,14 @@ func RegisterCrudSubcommands[T any](
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 type Field struct {
-	Name    string                    // struct field name
-	Label   string                    // what to show user
-	Initial string                    // starting value input box
-	Parse   func(string) (any, error) // raw string → typed value
-	Assign  func(holder any, v any)   // setter write into model
-	Input   textinput.Model           // the Bubble Tea textinput component
+	Name     string                    // struct field name
+	Label    string                    // what to show user
+	Initial  string                    // starting value input box
+	Validate func(input string) error  // optional validator executed before Parse
+	err      error                     // internal UI state
+	Parse    func(string) (any, error) // raw string → typed value
+	Assign   func(holder any, v any)   // setter write into model
+	Input    textinput.Model           // the Bubble Tea textinput component
 }
 
 // FormModel drives the multi‐field wizard
@@ -150,27 +152,37 @@ func (m FormModel) Init() tea.Cmd { return nil }
 
 func (m FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	f := &m.fields[m.idx]
-	// Let the textinput handle keystrokes
+
 	ti, cmd := f.Input.Update(msg)
 	f.Input = ti
 
 	if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
 		raw := f.Input.Value()
-		val, err := f.Parse(raw)
+
+		// 1) validate first
+		if f.Validate != nil {
+			if err := f.Validate(raw); err != nil {
+				f.err = err
+				return m, nil
+			}
+		}
+
+		// 2) parse
+		v, err := f.Parse(raw)
 		if err != nil {
-			// Here you might flash an error message instead of skipping
+			f.err = err
 			return m, nil
 		}
 
-		// Assign the parsed value into the holder via reflect
-		f.Assign(m.holder, val)
+		// 3) assign
+		f.Assign(m.holder, v)
 
-		// Advance or finish
+		// clear error and advance
+		f.err = nil
 		m.idx++
 		if m.idx >= len(m.fields) {
 			return m, tea.Quit
 		}
-		// Focus next field
 		m.fields[m.idx].Input.Focus()
 		return m, nil
 	}
@@ -184,8 +196,15 @@ func (m FormModel) View() string {
 	}
 	f := m.fields[m.idx]
 	header := fmt.Sprintf("[%d/%d] %s\n\n", m.idx+1, len(m.fields), f.Label)
+	body := f.Input.View()
+
+	errLine := ""
+	if f.err != nil {
+		errLine = "\n\n! " + f.err.Error()
+	}
+
 	footer := "\n\n(enter to confirm, ctrl+c to cancel)"
-	return header + f.Input.View() + footer
+	return header + body + errLine + footer
 }
 
 func RunFormWizard(fields []Field, holder any) {
@@ -211,5 +230,7 @@ func RunFormWizardWithSubmit(
 		log.Fatalf("submit failed: %v", err)
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
