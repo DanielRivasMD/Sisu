@@ -23,9 +23,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/aarondl/null/v8"
 	"github.com/aarondl/sqlboiler/v4/boil"
@@ -38,10 +36,17 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-var sessionCmd = &cobra.Command{
-	Use:   "session",
-	Short: "Manage work sessions",
+// Schema (sessions):
+//   id INTEGER PK
+//   task INTEGER NOT NULL  → int64 (required)
+//   date DATE              → null.Time (optional)
+//   mins INTEGER           → null.Int64 (optional)
+//   feedback INTEGER       → null.Int64 (optional)
+//   notes TEXT             → null.String (optional)
 
+var sessionCmd = &cobra.Command{
+	Use:               "session",
+	Short:             "Manage work sessions",
 	PersistentPreRun:  persistentPreRun,
 	PersistentPostRun: persistentPostRun,
 }
@@ -68,49 +73,37 @@ func init() {
 	RegisterCrudSubcommands(sessionCmd, "sisu.db", CrudModel[*models.Session]{
 		Singular: "session",
 
-		// ListFn: SELECT * FROM sessions ORDER BY id ASC
 		ListFn: func(ctx context.Context, conn *sql.DB) ([]*models.Session, error) {
-			return models.Sessions(
-				qm.OrderBy("id ASC"),
-			).All(ctx, conn)
+			return models.Sessions(qm.OrderBy("id ASC")).All(ctx, conn)
 		},
 
-		// Format: how each row shows up in "sisu session list"
 		Format: func(s *models.Session) (int64, string) {
-			// format the NOT NULL date
-			date := s.Date.Format("2006-01-02")
-
-			// duration and score_feedback are nullable
-			dur := ""
-			if s.DurationMins.Valid {
-				dur = strconv.FormatInt(s.DurationMins.Int64, 10)
+			date := ""
+			if s.Date.Valid {
+				date = s.Date.Time.Format("2006-01-02")
 			}
-			score := ""
-			if s.ScoreFeedback.Valid {
-				score = strconv.FormatInt(s.ScoreFeedback.Int64, 10)
+			mins := ""
+			if s.Mins.Valid {
+				mins = strconv.FormatInt(s.Mins.Int64, 10)
 			}
-
-			// notes is nullable text
+			fb := ""
+			if s.Feedback.Valid {
+				fb = strconv.FormatInt(s.Feedback.Int64, 10)
+			}
 			notes := s.Notes.String
 
-			// task FK is a plain int64
 			return s.ID.Int64, fmt.Sprintf(
-				"task=%d date=%s dur=%s score=%s notes=%s",
-				s.Task,
-				date,
-				dur,
-				score,
-				notes,
+				"task=%d date=%s mins=%s feedback=%s notes=%s",
+				s.Task, date, mins, fb, notes,
 			)
 		},
 
-		// RemoveFn: DELETE FROM sessions WHERE id=?
 		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
-			sess, err := models.FindSession(ctx, conn, null.Int64From(id))
+			row, err := models.FindSession(ctx, conn, null.Int64From(id))
 			if err != nil {
 				return err
 			}
-			_, err = sess.Delete(ctx, conn)
+			_, err = row.Delete(ctx, conn)
 			return err
 		},
 	})
@@ -118,90 +111,17 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// BUG: prompt task id
-// runSessionAdd launches a Bubble Tea form to gather session fields
 func runSessionAdd(_ *cobra.Command, _ []string) {
 	sess := &models.Session{}
 
 	fields := []Field{
-		{
-			Label:   "Task ID",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				return strconv.ParseInt(s, 10, 64)
-			},
-			Assign: func(holder any, v any) {
-				// TaskID is null.Int64
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("TaskID").
-					Set(reflect.ValueOf(null.Int64From(v.(int64))))
-			},
-		},
-		{
-			Label:   "Session date (YYYY-MM-DD)",
-			Initial: time.Now().Format("2006-01-02"),
-			Parse: func(s string) (any, error) {
-				t, err := time.Parse("2006-01-02", s)
-				if err != nil {
-					return nil, err
-				}
-				return null.TimeFrom(t), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Date").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Duration (minutes)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				n, err := strconv.ParseInt(s, 10, 64)
-				if err != nil {
-					return nil, err
-				}
-				return null.Int64From(n), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("DurationMinutes").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Score (1–5)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				n, err := strconv.ParseInt(s, 10, 64)
-				if err != nil {
-					return nil, err
-				}
-				return null.Int64From(n), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Score").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Notes (optional)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Notes").
-					Set(reflect.ValueOf(v))
-			},
-		},
+		// required FK
+		FInt("Task ID", "Task", ""),
+		// optional fields matching schema
+		FOptDate("Session date (YYYY-MM-DD, optional)", "Date", ""),
+		FOptInt("Duration (minutes, optional)", "Mins", ""),
+		FOptInt("Score (1–5, optional)", "Feedback", ""),
+		FOptString("Notes (optional)", "Notes", ""),
 	}
 
 	RunFormWizard(fields, sess)
@@ -226,83 +146,32 @@ func runSessionEdit(_ *cobra.Command, args []string) {
 	}
 
 	fields := []Field{
-		{
-			Label:   "Task ID",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				return strconv.ParseInt(s, 10, 64)
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("TaskID").
-					Set(reflect.ValueOf(null.Int64From(v.(int64))))
-			},
-		},
-		{
-			Label:   "Session date (YYYY-MM-DD)",
-			Initial: time.Now().Format("2006-01-02"),
-			Parse: func(s string) (any, error) {
-				t, err := time.Parse("2006-01-02", s)
-				if err != nil {
-					return nil, err
+		FInt("Task ID", "Task", strconv.FormatInt(sess.Task, 10)),
+		FOptDate("Session date (YYYY-MM-DD, optional)", "Date",
+			func() string {
+				if sess.Date.Valid {
+					return sess.Date.Time.Format("2006-01-02")
 				}
-				return null.TimeFrom(t), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Date").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Duration (minutes)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				n, err := strconv.ParseInt(s, 10, 64)
-				if err != nil {
-					return nil, err
+				return ""
+			}(),
+		),
+		FOptInt("Duration (minutes, optional)", "Mins",
+			func() string {
+				if sess.Mins.Valid {
+					return strconv.FormatInt(sess.Mins.Int64, 10)
 				}
-				return null.Int64From(n), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("DurationMinutes").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Score (1–5)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				n, err := strconv.ParseInt(s, 10, 64)
-				if err != nil {
-					return nil, err
+				return ""
+			}(),
+		),
+		FOptInt("Score (1–5, optional)", "Feedback",
+			func() string {
+				if sess.Feedback.Valid {
+					return strconv.FormatInt(sess.Feedback.Int64, 10)
 				}
-				return null.Int64From(n), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Score").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Notes (optional)",
-			Initial: sess.Notes.String,
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Notes").
-					Set(reflect.ValueOf(v))
-			},
-		},
+				return ""
+			}(),
+		),
+		FOptString("Notes (optional)", "Notes", sess.Notes.String),
 	}
 
 	RunFormWizard(fields, sess)
@@ -313,3 +182,4 @@ func runSessionEdit(_ *cobra.Command, args []string) {
 	fmt.Printf("Updated session %d\n", sess.ID.Int64)
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
