@@ -23,9 +23,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/aarondl/null/v8"
 	"github.com/aarondl/sqlboiler/v4/boil"
@@ -37,6 +35,12 @@ import (
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Schema (coach):
+//   id INTEGER PK
+//   trigger TEXT NOT NULL   → string (required)
+//   content TEXT NOT NULL   → string (required)
+//   date DATE               → null.Time (optional)
 
 var coachCmd = &cobra.Command{
 	Use:   "coach",
@@ -71,11 +75,10 @@ func init() {
 
 		Format: func(c *models.Coach) (int64, string) {
 			date := ""
-			date = c.Date.Format("2006-01-02")
-			return c.ID.Int64,
-				fmt.Sprintf("trigger=%s content=%s date=%s",
-					c.Trigger, c.Content, date,
-				)
+			if c.Date.Valid {
+				date = c.Date.Time.Format("2006-01-02")
+			}
+			return c.ID.Int64, fmt.Sprintf("trigger=%s content=%s date=%s", c.Trigger, c.Content, date)
 		},
 
 		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
@@ -91,63 +94,14 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// BUG: date crash
 func runCoachAdd(_ *cobra.Command, _ []string) {
 	entry := &models.Coach{}
 
 	fields := []Field{
-		{
-			Label:   "Trigger (non-empty)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return nil, fmt.Errorf("trigger cannot be blank")
-				}
-				return s, nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Trigger").
-					SetString(v.(string))
-			},
-		},
-		{
-			Label:   "Content (non-empty)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return nil, fmt.Errorf("content cannot be blank")
-				}
-				return s, nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Content").
-					SetString(v.(string))
-			},
-		},
-		{
-			Label:   "Date (YYYY-MM-DD, optional)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return null.Time{}, nil
-				}
-				t, err := time.Parse("2006-01-02", s)
-				if err != nil {
-					return nil, err
-				}
-				return null.TimeFrom(t), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Date").
-					Set(reflect.ValueOf(v))
-			},
-		},
+		FString("Trigger", "Trigger", ""),
+		FString("Content", "Content", ""),
+		// date is optional in the schema → null.Time
+		FOptDate("Date (YYYY-MM-DD, optional)", "Date", ""),
 	}
 
 	RunFormWizard(fields, entry)
@@ -161,10 +115,9 @@ func runCoachAdd(_ *cobra.Command, _ []string) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func runCoachEdit(_ *cobra.Command, args []string) {
-	rawID := args[0]
-	idNum, err := strconv.ParseInt(rawID, 10, 64)
+	idNum, err := strconv.ParseInt(args[0], 10, 64)
 	if err != nil {
-		log.Fatalf("invalid coach ID %q: %v", rawID, err)
+		log.Fatalf("invalid coach ID: %v", err)
 	}
 
 	entry, err := models.FindCoach(context.Background(), db.Conn, null.Int64From(idNum))
@@ -173,60 +126,16 @@ func runCoachEdit(_ *cobra.Command, args []string) {
 	}
 
 	fields := []Field{
-		{
-			Label:   "Trigger",
-			Initial: entry.Trigger,
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return nil, fmt.Errorf("trigger cannot be blank")
+		FString("Trigger", "Trigger", entry.Trigger),
+		FString("Content", "Content", entry.Content),
+		FOptDate("Date (YYYY-MM-DD, optional)", "Date",
+			func() string {
+				if entry.Date.Valid {
+					return entry.Date.Time.Format("2006-01-02")
 				}
-				return s, nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Trigger").
-					SetString(v.(string))
-			},
-		},
-		{
-			Label:   "Content",
-			Initial: entry.Content,
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return nil, fmt.Errorf("content cannot be blank")
-				}
-				return s, nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Content").
-					SetString(v.(string))
-			},
-		},
-		{
-			Label: "Date (YYYY-MM-DD, optional)",
-			Initial: func() string {
-				return entry.Date.Format("2006-01-02")
+				return ""
 			}(),
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return null.Time{}, nil
-				}
-				t, err := time.Parse("2006-01-02", s)
-				if err != nil {
-					return nil, err
-				}
-				return null.TimeFrom(t), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Date").
-					Set(reflect.ValueOf(v))
-			},
-		},
+		),
 	}
 
 	RunFormWizard(fields, entry)
