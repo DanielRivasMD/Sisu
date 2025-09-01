@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS tasks (
 	name text NOT NULL,
 	tag text,
 	description text,
-	target datetime,
 	start datetime,
+	target datetime,
 	archived boolean DEFAULT FALSE
 );
 
