@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aarondl/null/v8"
@@ -119,7 +120,28 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 	today := time.Now().Format("2006-01-02")
 	plus100 := time.Now().AddDate(0, 0, 100).Format("2006-01-02")
 
+	profileChoice := "" // "default" or "custom"
+
 	fields := []Field{
+		// profile choice
+		{
+			Label:    "Profile (default/custom)",
+			Initial:  "default",
+			Validate: VRequired("Profile"),
+			Parse: func(s string) (any, error) {
+				v := strings.ToLower(strings.TrimSpace(s))
+				switch v {
+				case "default", "custom":
+					return v, nil
+				default:
+					return nil, fmt.Errorf("must be 'default' or 'custom'")
+				}
+			},
+			Assign: func(h any, v any) {
+				profileChoice = v.(string)
+			},
+		},
+
 		// name (required)
 		{
 			Label:    "Task name",
@@ -128,6 +150,7 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 			Parse:    ParseNonEmpty("Task name"),
 			Assign:   func(h any, v any) { AssignString("Name", h, v) },
 		},
+
 		// tag (optional)
 		{
 			Label:   "Tag (optional)",
@@ -135,6 +158,7 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 			Parse:   ParseOptString,
 			Assign:  func(h any, v any) { Assign("Tag", h, v) },
 		},
+
 		// description (optional)
 		{
 			Label:   "Description (optional)",
@@ -142,7 +166,8 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 			Parse:   ParseOptString,
 			Assign:  func(h any, v any) { Assign("Description", h, v) },
 		},
-		// target (optional datetime → null.Time)
+
+		// target (optional datetime → null.Time) defaults to today + 100 days
 		{
 			Label:    "Target date (YYYY-MM-DD, optional)",
 			Initial:  plus100,
@@ -150,7 +175,8 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 			Parse:    ParseOptDate,
 			Assign:   func(h any, v any) { Assign("Target", h, v) },
 		},
-		// start (optional datetime → null.Time)
+
+		// start (optional datetime → null.Time) defaults to today
 		{
 			Label:    "Start date (YYYY-MM-DD, optional)",
 			Initial:  today,
@@ -158,20 +184,23 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 			Parse:    ParseOptDate,
 			Assign:   func(h any, v any) { Assign("Start", h, v) },
 		},
-		// {
-		//  Label:   "Archived (true/false, optional)",
-		//  Initial: "",
-		//  Parse:   ParseBool,               // returns bool
-		//  Assign:  func(h any, v any) { Assign("Archived", h, null.BoolFrom(v.(bool))) },
-		// },
 	}
 
 	RunFormWizard(fields, task)
 
+	// Insert the task
 	if err := task.Insert(context.Background(), db.Conn, boil.Infer()); err != nil {
 		log.Fatalf("insert task: %v", err)
 	}
 	fmt.Printf("Created task %d\n", task.ID.Int64)
+
+	// If profileChoice is "default", seed related tables
+	if profileChoice == "default" {
+		if err := seedDefaultTaskProfile(db.Ctx(), db.Conn, task.ID.Int64); err != nil {
+			log.Fatalf("seed default profile: %v", err)
+		}
+		fmt.Println("Applied default profile (milestones, reviews, coach).")
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -250,6 +279,73 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 		log.Fatalf("update failed: %v", err)
 	}
 	fmt.Printf("Updated task %d\n", task.ID.Int64)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// seedDefaultTaskProfile seeds milestones, reviews, and coach defaults for a task.
+func seedDefaultTaskProfile(ctx context.Context, exec boil.ContextExecutor, taskID int64) error {
+	// Helpers for dates
+	base := time.Now()
+	plusDays := func(n int) null.Time { return null.TimeFrom(base.AddDate(0, 0, n)) }
+
+	// 1) Milestones (three entries)
+	milestones := []*models.Milestone{
+		{
+			Task:    taskID,
+			Type:    null.StringFrom("courage"),
+			Value:   null.Int64From(2),
+			Done:    plusDays(25),
+			Message: null.StringFrom("face difficulties with resolve"),
+		},
+		{
+			Task:    taskID,
+			Type:    null.StringFrom("determination"),
+			Value:   null.Int64From(3),
+			Done:    plusDays(50),
+			Message: null.StringFrom("continue despite challenges"),
+		},
+		{
+			Task:    taskID,
+			Type:    null.StringFrom("perseverance"),
+			Value:   null.Int64From(4),
+			Done:    plusDays(75),
+			Message: null.StringFrom("stay committed to the goal"),
+		},
+	}
+	for _, m := range milestones {
+		if err := m.Insert(ctx, exec, boil.Infer()); err != nil {
+			return fmt.Errorf("insert milestone: %w", err)
+		}
+	}
+
+	// 2) Reviews: seven entries with weeks 2,4,6,8,10,12,14 and ordinal summaries
+	weeks := []int64{2, 4, 6, 8, 10, 12, 14}
+	ordinals := []string{"first", "second", "third", "fourth", "fifth", "sixth", "seventh"}
+	for i, w := range weeks {
+		r := &models.Review{
+			Task:    taskID,
+			Week:    null.Int64From(w),
+			Summary: null.StringFrom(ordinals[i] + ": "),
+		}
+		if err := r.Insert(ctx, exec, boil.Infer()); err != nil {
+			return fmt.Errorf("insert review (week %d): %w", w, err)
+		}
+	}
+
+	// 3) Coach: three entries (date optional -> leave NULL)
+	coaches := []*models.Coach{
+		{Trigger: "forgotten", Content: "forgotten"},
+		{Trigger: "low performance", Content: "low performance"},
+		{Trigger: "superb", Content: "superb"},
+	}
+	for _, c := range coaches {
+		if err := c.Insert(ctx, exec, boil.Infer()); err != nil {
+			return fmt.Errorf("insert coach: %w", err)
+		}
+	}
+
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
