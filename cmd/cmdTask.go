@@ -116,9 +116,12 @@ func init() {
 func runTaskAdd(_ *cobra.Command, _ []string) {
 	task := &models.Task{}
 
-	// Defaults
-	today := time.Now().Format("2006-01-02")
-	plus100 := time.Now().AddDate(0, 0, 100).Format("2006-01-02")
+	// capture the chosen Start date (nullable) to drive Target default and seeding
+	var startPicked null.Time
+
+	// convenience for showing an initial suggestion before user edits Start
+	today := time.Now()
+	todayStr := today.Format("2006-01-02")
 
 	profileChoice := "" // "default" or "custom"
 
@@ -167,22 +170,38 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 			Assign:  func(h any, v any) { Assign("Description", h, v) },
 		},
 
-		// target (optional datetime → null.Time) defaults to today + 100 days
-		{
-			Label:    "Target date (YYYY-MM-DD, optional)",
-			Initial:  plus100,
-			Validate: VDateOptional(),
-			Parse:    ParseOptDate,
-			Assign:   func(h any, v any) { Assign("Target", h, v) },
-		},
-
 		// start (optional datetime → null.Time) defaults to today
 		{
 			Label:    "Start date (YYYY-MM-DD, optional)",
-			Initial:  today,
+			Initial:  todayStr,
 			Validate: VDateOptional(),
 			Parse:    ParseOptDate,
-			Assign:   func(h any, v any) { Assign("Start", h, v) },
+			Assign: func(h any, v any) {
+				// assign to model
+				Assign("Start", h, v)
+				// keep a copy to compute Target and seed dates
+				startPicked = v.(null.Time)
+			},
+		},
+
+		// target (optional datetime → null.Time) defaults to today + 100 days
+		{
+			Label:    "Target date (YYYY-MM-DD, optional)",
+			Initial:  "",
+			Validate: VDateOptional(),
+			Parse: func(s string) (any, error) {
+				s = strings.TrimSpace(s)
+				if s != "" {
+					return ParseOptDate(s)
+				}
+				// user left blank → compute default from Start (or today if Start is empty)
+				base := today
+				if startPicked.Valid {
+					base = startPicked.Time
+				}
+				return null.TimeFrom(base.AddDate(0, 0, 100)), nil
+			},
+			Assign: func(h any, v any) { Assign("Target", h, v) },
 		},
 	}
 
@@ -194,9 +213,14 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 	}
 	fmt.Printf("Created task %d\n", task.ID.Int64)
 
+	base := today
+	if startPicked.Valid {
+		base = startPicked.Time
+	}
+
 	// If profileChoice is "default", seed related tables
 	if profileChoice == "default" {
-		if err := seedDefaultTaskProfile(db.Ctx(), db.Conn, task.ID.Int64); err != nil {
+		if err := seedDefaultTaskProfileWithBase(db.Ctx(), db.Conn, task.ID.Int64, base); err != nil {
 			log.Fatalf("seed default profile: %v", err)
 		}
 		fmt.Println("Applied default profile (milestones, reviews, coach).")
@@ -284,10 +308,9 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // seedDefaultTaskProfile seeds milestones, reviews, and coach defaults for a task.
-func seedDefaultTaskProfile(ctx context.Context, exec boil.ContextExecutor, taskID int64) error {
+func seedDefaultTaskProfileWithBase(ctx context.Context, exec boil.ContextExecutor, taskID int64, base time.Time) error {
 	// Helpers for dates
-	base := time.Now()
-	plusDays := func(n int) null.Time { return null.TimeFrom(base.AddDate(0, 0, n)) }
+	addDays := func(n int) null.Time { return null.TimeFrom(base.AddDate(0, 0, n)) }
 
 	// 1) Milestones (three entries)
 	milestones := []*models.Milestone{
@@ -295,21 +318,21 @@ func seedDefaultTaskProfile(ctx context.Context, exec boil.ContextExecutor, task
 			Task:    taskID,
 			Type:    null.StringFrom("courage"),
 			Value:   null.Int64From(2),
-			Done:    plusDays(25),
+			Done:    addDays(25),
 			Message: null.StringFrom("face difficulties with resolve"),
 		},
 		{
 			Task:    taskID,
 			Type:    null.StringFrom("determination"),
 			Value:   null.Int64From(3),
-			Done:    plusDays(50),
+			Done:    addDays(50),
 			Message: null.StringFrom("continue despite challenges"),
 		},
 		{
 			Task:    taskID,
 			Type:    null.StringFrom("perseverance"),
 			Value:   null.Int64From(4),
-			Done:    plusDays(75),
+			Done:    addDays(75),
 			Message: null.StringFrom("stay committed to the goal"),
 		},
 	}
