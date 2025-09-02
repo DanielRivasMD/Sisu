@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/aarondl/null/v8"
 	"github.com/aarondl/sqlboiler/v4/boil"
@@ -76,20 +77,35 @@ func init() {
 		Format: func(c *models.Coach) (int64, string) {
 			date := ""
 			if c.Date.Valid {
-				date = c.Date.Time.Format("2006-01-02")
+				date = c.Date.Time.Format(time.RFC3339)
 			}
 			return c.ID.Int64, fmt.Sprintf("trigger=%s content=%s date=%s", c.Trigger, c.Content, date)
 		},
 
+		TableHeaders: []string{"id", "trigger", "content", "date"},
+		TableRow: func(c *models.Coach) []string {
+			date := ""
+			if c.Date.Valid {
+				date = c.Date.Time.Format(time.RFC3339)
+			}
+			return []string{
+				strconv.FormatInt(c.ID.Int64, 10),
+				c.Trigger,
+				c.Content,
+				date,
+			}
+		},
+
 		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
-			c, err := models.FindCoach(ctx, conn, null.Int64From(id))
+			row, err := models.FindCoach(ctx, conn, null.Int64From(id))
 			if err != nil {
 				return err
 			}
-			_, err = c.Delete(ctx, conn)
+			_, err = row.Delete(ctx, conn)
 			return err
 		},
 	})
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
