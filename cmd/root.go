@@ -122,6 +122,19 @@ func VRequired(label string) func(string) error {
 	}
 }
 
+// VBool validates a free-form boolean (true/false/1/0/yes/no).
+func VBool(label string) func(string) error {
+	return func(s string) error {
+		s = strings.TrimSpace(strings.ToLower(s))
+		switch s {
+		case "", "0", "1", "true", "t", "false", "f", "yes", "y", "no", "n":
+			return nil
+		default:
+			return fmt.Errorf("%s must be a boolean (true/false/yes/no/1/0)", label)
+		}
+	}
+}
+
 // VIntRange validates optional integer input within [min, max].
 // Blank passes (use with optional fields). Pair with ParseOptInt64.
 func VIntRange(min, max int64) func(string) error {
@@ -168,17 +181,32 @@ func VDateOptional() func(string) error {
 	}
 }
 
-// VBool validates a free-form boolean (true/false/1/0/yes/no).
-func VBool(label string) func(string) error {
-	return func(s string) error {
-		s = strings.TrimSpace(strings.ToLower(s))
-		switch s {
-		case "", "0", "1", "true", "t", "false", "f", "yes", "y", "no", "n":
-			return nil
-		default:
-			return fmt.Errorf("%s must be a boolean (true/false/yes/no/1/0)", label)
-		}
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Initials
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Null helpers → initial string for form fields
+
+func OptInt64Initial(v null.Int64) string {
+	if v.Valid {
+		return strconv.FormatInt(v.Int64, 10)
 	}
+	return ""
+}
+
+func OptTimeInitial(v null.Time, layout string) string {
+	if v.Valid {
+		return v.Time.Format(layout)
+	}
+	return ""
+}
+
+func OptStringInitial(v null.String) string {
+	// null.String.String is already "" when invalid, but keep symmetry
+	if v.Valid {
+		return v.String
+	}
+	return ""
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -292,69 +320,6 @@ func Assign(field string, holder any, v any) {
 // Tiny field builders (optional, to reduce repetitive wiring)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// FInt builds a required int64 field.
-func FInt(label, field, initial string) Field {
-	return Field{
-		Label:   chalk.Cyan.Color(label),
-		Initial: initial,
-		Parse:   ParseInt64,
-		Assign:  func(h any, v any) { AssignInt64(field, h, v) },
-	}
-}
-
-// FDate builds a required date field (time.Time).
-func FDate(label, field, initial string) Field {
-	return Field{
-		Label:    chalk.Cyan.Color(label),
-		Initial:  initial,
-		Validate: VDate(label),
-		Parse:    ParseDate,
-		Assign:   func(h any, v any) { AssignDate(field, h, v) },
-	}
-}
-
-// FOptDate builds an optional date field (null.Time).
-func FOptDate(label, field, initial string) Field {
-	return Field{
-		Label:    chalk.Cyan.Color(label),
-		Initial:  initial,
-		Validate: VDateOptional(),
-		Parse:    ParseOptDate,
-		Assign:   func(h any, v any) { AssignNullableDate(field, h, v) },
-	}
-}
-
-// FOptInt builds an optional int64 field (null.Int64).
-func FOptInt(label, field, initial string) Field {
-	return Field{
-		Label:   chalk.Cyan.Color(label),
-		Initial: initial,
-		Parse:   ParseOptInt64,
-		Assign:  func(h any, v any) { Assign(field, h, v) },
-	}
-}
-
-// FOptString builds an optional text field (null.String).
-func FOptString(label, field, initial string) Field {
-	return Field{
-		Label:   chalk.Cyan.Color(label),
-		Initial: initial,
-		Parse:   ParseOptString,
-		Assign:  func(h any, v any) { Assign(field, h, v) },
-	}
-}
-
-// FString builds a required non-empty string field.
-func FString(label, field, initial string) Field {
-	return Field{
-		Label:    chalk.Cyan.Color(label),
-		Initial:  initial,
-		Validate: VRequired(label),
-		Parse:    ParseNonEmpty(label),
-		Assign:   func(h any, v any) { AssignString(field, h, v) },
-	}
-}
-
 // FBool builds a boolean field (plain bool). If your model uses null.Bool, wrap with null.BoolFrom in Assign.
 func FBool(label, field, initial string) Field {
 	return Field{
@@ -362,6 +327,125 @@ func FBool(label, field, initial string) Field {
 		Initial: initial,
 		Parse:   ParseBool,
 		Assign:  func(h any, v any) { AssignBool(field, h, v) },
+	}
+}
+
+// FInt builds a required int64 field.
+func FInt(label, field, initial string, opts ...FieldOpt) Field {
+	f := Field{
+		Label:   chalk.Cyan.Color(label),
+		Initial: initial,
+		Parse:   ParseInt64,
+		Assign:  func(h any, v any) { AssignInt64(field, h, v) },
+	}
+	for _, opt := range opts {
+		opt(&f)
+	}
+	return f
+}
+
+// FOptInt builds an optional int64 field (null.Int64).
+func FOptInt(label, field, initial string, opts ...FieldOpt) Field {
+	f := Field{
+		Label:   chalk.Cyan.Color(label),
+		Initial: initial,
+		Parse:   ParseOptInt64,
+		Assign:  func(h any, v any) { Assign(field, h, v) },
+	}
+	for _, opt := range opts {
+		opt(&f)
+	}
+	return f
+}
+
+// FDate builds a required date field (time.Time).
+func FDate(label, field, initial string, opts ...FieldOpt) Field {
+	f := Field{
+		Label:    chalk.Cyan.Color(label),
+		Initial:  initial,
+		Validate: VDate(label),
+		Parse:    ParseDate,
+		Assign:   func(h any, v any) { AssignDate(field, h, v) },
+	}
+	for _, opt := range opts {
+		opt(&f)
+	}
+	return f
+}
+
+// FOptDate builds an optional date field (null.Time).
+func FOptDate(label, field, initial string, opts ...FieldOpt) Field {
+	f := Field{
+		Label:    chalk.Cyan.Color(label),
+		Initial:  initial,
+		Validate: VDateOptional(),
+		Parse:    ParseOptDate,
+		Assign:   func(h any, v any) { AssignNullableDate(field, h, v) },
+	}
+	for _, opt := range opts {
+		opt(&f)
+	}
+	return f
+}
+
+// FString builds a required non-empty string field.
+func FString(label, field, initial string, opts ...FieldOpt) Field {
+	f := Field{
+		Label:    chalk.Cyan.Color(label),
+		Initial:  initial,
+		Validate: VRequired(label),
+		Parse:    ParseNonEmpty(label),
+		Assign:   func(h any, v any) { AssignString(field, h, v) },
+	}
+	for _, opt := range opts {
+		opt(&f)
+	}
+	return f
+}
+
+// FOptString remains optional; add opts for consistency.
+func FOptString(label, field, initial string, opts ...FieldOpt) Field {
+	f := Field{
+		Label:   chalk.Cyan.Color(label),
+		Initial: initial,
+		Parse:   ParseOptString,
+		Assign:  func(h any, v any) { Assign(field, h, v) },
+	}
+	for _, opt := range opts {
+		opt(&f)
+	}
+	return f
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+type FieldOpt func(*Field)
+
+func WithInitial(s string) FieldOpt                  { return func(f *Field) { f.Initial = s } }
+func WithValidate(v func(string) error) FieldOpt     { return func(f *Field) { f.Validate = v } }
+func WithParse(p func(string) (any, error)) FieldOpt { return func(f *Field) { f.Parse = p } }
+func WithAssign(a func(any, any)) FieldOpt           { return func(f *Field) { f.Assign = a } }
+func WithLabel(lbl string) FieldOpt                  { return func(f *Field) { f.Label = lbl } }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func FChoice(label string, initial string, allow []string, setter func(string)) Field {
+	lowerSet := make(map[string]struct{}, len(allow))
+	for _, v := range allow {
+		lowerSet[strings.ToLower(v)] = struct{}{}
+	}
+	return Field{
+		Label:    label,
+		Initial:  initial,
+		Validate: VRequired(label),
+		Parse: func(s string) (any, error) {
+			v := strings.ToLower(strings.TrimSpace(s))
+			if _, ok := lowerSet[v]; !ok {
+				return nil, fmt.Errorf("must be one of: %s", strings.Join(allow, ", "))
+			}
+			return v, nil
+		},
+		Assign: func(_ any, v any) { setter(v.(string)) },
 	}
 }
 
