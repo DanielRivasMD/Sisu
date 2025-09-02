@@ -116,7 +116,6 @@ func runCoachAdd(_ *cobra.Command, _ []string) {
 	fields := []Field{
 		FString("Trigger", "Trigger", ""),
 		FString("Content", "Content", ""),
-		// date is optional in the schema → null.Time
 		FOptDate("Date (YYYY-MM-DD, optional)", "Date", ""),
 	}
 
@@ -144,14 +143,7 @@ func runCoachEdit(_ *cobra.Command, args []string) {
 	fields := []Field{
 		FString("Trigger", "Trigger", entry.Trigger),
 		FString("Content", "Content", entry.Content),
-		FOptDate("Date (YYYY-MM-DD, optional)", "Date",
-			func() string {
-				if entry.Date.Valid {
-					return entry.Date.Time.Format("2006-01-02")
-				}
-				return ""
-			}(),
-		),
+		FOptDate("Date (YYYY-MM-DD, optional)", "Date", OptTimeInitial(entry.Date, "2006-01-02")),
 	}
 
 	RunFormWizard(fields, entry)
