@@ -33,6 +33,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
+	"github.com/ttacon/chalk"
 
 	"github.com/DanielRivasMD/Sisu/db"
 )
@@ -294,7 +295,7 @@ func Assign(field string, holder any, v any) {
 // FInt builds a required int64 field.
 func FInt(label, field, initial string) Field {
 	return Field{
-		Label:   label,
+		Label:   chalk.Cyan.Color(label),
 		Initial: initial,
 		Parse:   ParseInt64,
 		Assign:  func(h any, v any) { AssignInt64(field, h, v) },
@@ -304,7 +305,7 @@ func FInt(label, field, initial string) Field {
 // FDate builds a required date field (time.Time).
 func FDate(label, field, initial string) Field {
 	return Field{
-		Label:    label,
+		Label:    chalk.Cyan.Color(label),
 		Initial:  initial,
 		Validate: VDate(label),
 		Parse:    ParseDate,
@@ -315,7 +316,7 @@ func FDate(label, field, initial string) Field {
 // FOptDate builds an optional date field (null.Time).
 func FOptDate(label, field, initial string) Field {
 	return Field{
-		Label:    label,
+		Label:    chalk.Cyan.Color(label),
 		Initial:  initial,
 		Validate: VDateOptional(),
 		Parse:    ParseOptDate,
@@ -326,7 +327,7 @@ func FOptDate(label, field, initial string) Field {
 // FOptInt builds an optional int64 field (null.Int64).
 func FOptInt(label, field, initial string) Field {
 	return Field{
-		Label:   label,
+		Label:   chalk.Cyan.Color(label),
 		Initial: initial,
 		Parse:   ParseOptInt64,
 		Assign:  func(h any, v any) { Assign(field, h, v) },
@@ -336,7 +337,7 @@ func FOptInt(label, field, initial string) Field {
 // FOptString builds an optional text field (null.String).
 func FOptString(label, field, initial string) Field {
 	return Field{
-		Label:   label,
+		Label:   chalk.Cyan.Color(label),
 		Initial: initial,
 		Parse:   ParseOptString,
 		Assign:  func(h any, v any) { Assign(field, h, v) },
@@ -346,7 +347,7 @@ func FOptString(label, field, initial string) Field {
 // FString builds a required non-empty string field.
 func FString(label, field, initial string) Field {
 	return Field{
-		Label:    label,
+		Label:    chalk.Cyan.Color(label),
 		Initial:  initial,
 		Validate: VRequired(label),
 		Parse:    ParseNonEmpty(label),
@@ -357,7 +358,7 @@ func FString(label, field, initial string) Field {
 // FBool builds a boolean field (plain bool). If your model uses null.Bool, wrap with null.BoolFrom in Assign.
 func FBool(label, field, initial string) Field {
 	return Field{
-		Label:   label,
+		Label:   chalk.Cyan.Color(label),
 		Initial: initial,
 		Parse:   ParseBool,
 		Assign:  func(h any, v any) { AssignBool(field, h, v) },
