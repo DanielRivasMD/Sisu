@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/aarondl/null/v8"
 	"github.com/aarondl/sqlboiler/v4/boil"
@@ -77,10 +78,11 @@ func init() {
 			return models.Sessions(qm.OrderBy("id ASC")).All(ctx, conn)
 		},
 
+		// Optional legacy fallback
 		Format: func(s *models.Session) (int64, string) {
 			date := ""
 			if s.Date.Valid {
-				date = s.Date.Time.Format("2006-01-02")
+				date = s.Date.Time.Format(time.RFC3339)
 			}
 			mins := ""
 			if s.Mins.Valid {
@@ -90,12 +92,33 @@ func init() {
 			if s.Feedback.Valid {
 				fb = strconv.FormatInt(s.Feedback.Int64, 10)
 			}
-			notes := s.Notes.String
+			return s.ID.Int64, fmt.Sprintf("task=%d date=%s mins=%s feedback=%s notes=%s",
+				s.Task, date, mins, fb, s.Notes.String)
+		},
 
-			return s.ID.Int64, fmt.Sprintf(
-				"task=%d date=%s mins=%s feedback=%s notes=%s",
-				s.Task, date, mins, fb, notes,
-			)
+		// Pretty table
+		TableHeaders: []string{"id", "task", "date", "mins", "feedback", "notes"},
+		TableRow: func(s *models.Session) []string {
+			date := ""
+			if s.Date.Valid {
+				date = s.Date.Time.Format(time.RFC3339)
+			}
+			mins := ""
+			if s.Mins.Valid {
+				mins = strconv.FormatInt(s.Mins.Int64, 10)
+			}
+			fb := ""
+			if s.Feedback.Valid {
+				fb = strconv.FormatInt(s.Feedback.Int64, 10)
+			}
+			return []string{
+				strconv.FormatInt(s.ID.Int64, 10),
+				strconv.FormatInt(s.Task, 10),
+				date,
+				mins,
+				fb,
+				s.Notes.String,
+			}
 		},
 
 		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
