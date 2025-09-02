@@ -113,9 +113,7 @@ func runCalendarAdd(_ *cobra.Command, _ []string) {
 	entry := &models.Calendar{}
 
 	fields := []Field{
-		// date is nullable in schema → optional date (null.Time)
 		FOptDate("Date (YYYY-MM-DD, optional)", "Date", ""),
-		// note is required text
 		FString("Note", "Note", ""),
 	}
 
@@ -142,14 +140,7 @@ func runCalendarEdit(_ *cobra.Command, args []string) {
 	}
 
 	fields := []Field{
-		FOptDate("Date (YYYY-MM-DD, optional)", "Date",
-			func() string {
-				if entry.Date.Valid {
-					return entry.Date.Time.Format("2006-01-02")
-				}
-				return ""
-			}(),
-		),
+		FOptDate("Date (YYYY-MM-DD, optional)", "Date", OptTimeInitial(entry.Date, "2006-01-02")),
 		FString("Note", "Note", entry.Note),
 	}
 
