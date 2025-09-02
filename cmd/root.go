@@ -54,6 +54,9 @@ func Execute() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO: use constant date format
+const DateYMD = "2006-01-02"
+
 var (
 	verbose bool
 	dbPath  string // populated by the --db flag

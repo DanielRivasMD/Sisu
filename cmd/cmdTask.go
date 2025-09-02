@@ -71,6 +71,7 @@ var taskEditCmd = &cobra.Command{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO: refactor archive subcmd as a on / off switch
 // sisu task archive [id ...]
 // Archives one or more tasks by setting archived = true.
 var taskArchiveCmd = &cobra.Command{
