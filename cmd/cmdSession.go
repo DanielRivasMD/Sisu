@@ -134,6 +134,8 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO: add default date today
+// TODO: add menu selector for tasks?
 func runSessionAdd(_ *cobra.Command, _ []string) {
 	sess := &models.Session{}
 

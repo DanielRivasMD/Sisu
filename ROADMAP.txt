@@ -2,10 +2,14 @@
 - use error handling => `horus`
 - add filtering options when listing
 - update rm & edit completions on cmds
+- add commands: stats, graph, streak, cal
 
 ==================================================
 cmd/cmdMigrate.go
   line 49     TODO   if successful, run `sqlboiler sqlite3`
+cmd/cmdSession.go
+  line 137    TODO   add default date today
+  line 138    TODO   add menu selector for tasks?
 cmd/utilCRUD.go
   line 38     TODO   add verbose option
 ==================================================
