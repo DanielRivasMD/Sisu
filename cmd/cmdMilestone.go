@@ -161,22 +161,8 @@ func runMilestoneEdit(_ *cobra.Command, args []string) {
 	fields := []Field{
 		FInt("Task ID", "Task", strconv.FormatInt(m.Task, 10)),
 		FOptString("Type (optional)", "Type", m.Type.String),
-		FOptInt("Value (optional)", "Value",
-			func() string {
-				if m.Value.Valid {
-					return strconv.FormatInt(m.Value.Int64, 10)
-				}
-				return ""
-			}(),
-		),
-		FOptDate("Done date (YYYY-MM-DD, optional)", "Done",
-			func() string {
-				if m.Done.Valid {
-					return m.Done.Time.Format("2006-01-02")
-				}
-				return ""
-			}(),
-		),
+		FOptInt("Value (optional)", "Value", OptInt64Initial(m.Value)),
+		FOptDate("Done date (YYYY-MM-DD, optional)", "Done", OptTimeInitial(m.Done, "2006-01-02")),
 		FOptString("Message (optional)", "Message", m.Message.String),
 	}
 
