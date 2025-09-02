@@ -62,40 +62,41 @@ func init() {
 	rootCmd.AddCommand(reviewCmd)
 	reviewCmd.AddCommand(reviewAddCmd, reviewEditCmd)
 
-	// register list & rm via the generic CRUD helper
 	RegisterCrudSubcommands(reviewCmd, "sisu.db", CrudModel[*models.Review]{
 		Singular: "review",
 
-		// list all reviews
 		ListFn: func(ctx context.Context, conn *sql.DB) ([]*models.Review, error) {
 			return models.Reviews(qm.OrderBy("id ASC")).All(ctx, conn)
 		},
 
-		// format one review row for "list"
 		Format: func(r *models.Review) (int64, string) {
-			// task FK
-			taskID := r.Task
-
-			// week is nullable
-			week := ""
+			wk := ""
 			if r.Week.Valid {
-				week = strconv.FormatInt(r.Week.Int64, 10)
+				wk = strconv.FormatInt(r.Week.Int64, 10)
 			}
-
-			// summary is nullable text
-			summary := r.Summary.String
-
-			return r.ID.Int64,
-				fmt.Sprintf("task=%d week=%s summary=%s", taskID, week, summary)
+			return r.ID.Int64, fmt.Sprintf("task=%d week=%s summary=%s", r.Task, wk, r.Summary.String)
 		},
 
-		// rm by primary key
+		TableHeaders: []string{"id", "task", "week", "summary"},
+		TableRow: func(r *models.Review) []string {
+			wk := ""
+			if r.Week.Valid {
+				wk = strconv.FormatInt(r.Week.Int64, 10)
+			}
+			return []string{
+				strconv.FormatInt(r.ID.Int64, 10),
+				strconv.FormatInt(r.Task, 10),
+				wk,
+				r.Summary.String,
+			}
+		},
+
 		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
-			rev, err := models.FindReview(ctx, conn, null.Int64From(id))
+			row, err := models.FindReview(ctx, conn, null.Int64From(id))
 			if err != nil {
 				return err
 			}
-			_, err = rev.Delete(ctx, conn)
+			_, err = row.Delete(ctx, conn)
 			return err
 		},
 	})
