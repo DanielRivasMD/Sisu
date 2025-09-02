@@ -193,10 +193,10 @@ func init() {
 func runTaskAdd(_ *cobra.Command, _ []string) {
 	task := &models.Task{}
 
-	// capture the chosen Start date (nullable) to drive Target default and seeding
+	// capture the chosen Start date (nullable) to drive Target default & seeding
 	var startPicked null.Time
 
-	// convenience for showing an initial suggestion before user edits Start
+	// convenience for showing initial suggestion before user edits Start
 	today := time.Now()
 	todayStr := today.Format("2006-01-02")
 
@@ -256,14 +256,14 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 			Assign: func(h any, v any) {
 				// assign to model
 				Assign("Start", h, v)
-				// keep a copy to compute Target and seed dates
+				// keep a copy to compute Target & seed dates
 				startPicked = v.(null.Time)
 			},
 		},
 
 		// target (optional datetime → null.Time) defaults to today + 100 days
 		{
-			Label:    "Target date (YYYY-MM-DD, optional)\nDefault calculated to 100 days from Start date",
+			Label:    "Target date (YYYY-MM-DD, optional) Default calculated to 100 days from Start date",
 			Initial:  "",
 			Validate: VDateOptional(),
 			Parse: func(s string) (any, error) {
