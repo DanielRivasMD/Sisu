@@ -36,19 +36,13 @@ import (
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 type CrudModel[T any] struct {
-	Singular string
-
-	// Required
-	ListFn   func(ctx context.Context, db *sql.DB) ([]T, error)
-	RemoveFn func(ctx context.Context, db *sql.DB, id int64) error
-
-	// Legacy single-line formatting fallback
-	Format func(item T) (int64, string)
-
-	// Optional: rich table output
-	// If both are set, `list` prints a table using these.
+	Singular     string
+	ListFn       func(ctx context.Context, db *sql.DB) ([]T, error)
+	RemoveFn     func(ctx context.Context, db *sql.DB, id int64) error
+	Format       func(item T) (int64, string)
 	TableHeaders []string
 	TableRow     func(item T) []string
+	HintFn       func(item T) string
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -110,17 +104,15 @@ func RegisterCrudSubcommands[T any](
 			}
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			// Only provide completion if we have a formatter to show human hints
 			if desc.Format == nil {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
-			// Exclude already provided IDs (rm supports multiple)
 			used := make(map[string]struct{}, len(args))
 			for _, a := range args {
 				used[a] = struct{}{}
 			}
 			ctx := db.Ctx()
-			return buildIDCompletions(ctx, db.Conn, desc.ListFn, desc.Format, toComplete, used)
+			return buildIDCompletions(ctx, db.Conn, desc.ListFn, desc.Format, toComplete, used, desc.HintFn)
 		},
 	}
 	parent.AddCommand(rm)
@@ -128,24 +120,19 @@ func RegisterCrudSubcommands[T any](
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// buildIDCompletions returns completions like "123\tname=foo start=..."
-// - toComplete: user’s current partial input
-// - used: set of IDs already typed (for multi-arg rm)
 func buildIDCompletions[T any](
 	ctx context.Context,
-	dbConn *sql.DB,
+	_ *sql.DB,
 	listFn func(ctx context.Context, db *sql.DB) ([]T, error),
 	format func(item T) (int64, string),
 	toComplete string,
 	used map[string]struct{},
+	// optional, pass nil if not used
+	hintFn func(item T) string,
 ) ([]string, cobra.ShellCompDirective) {
-	// Ensure DB for completion (PersistentPreRun doesn’t run for __complete)
 	if err := EnsureDB(); err != nil {
-		// Don’t panic; tell the shell there are no completions and no file fallback.
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-
-	// Use the (now ensured) connection from your package, not the stale dbConn arg
 	items, err := listFn(ctx, db.Conn)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
@@ -154,7 +141,7 @@ func buildIDCompletions[T any](
 	toComplete = strings.TrimSpace(toComplete)
 	comps := make([]string, 0, len(items))
 	for _, it := range items {
-		id, human := format(it)
+		id, fallback := format(it)
 		s := strconv.FormatInt(id, 10)
 		if used != nil {
 			if _, skip := used[s]; skip {
@@ -164,7 +151,11 @@ func buildIDCompletions[T any](
 		if toComplete != "" && !strings.HasPrefix(s, toComplete) {
 			continue
 		}
-		comps = append(comps, s+"\t"+human)
+		hint := fallback
+		if hintFn != nil {
+			hint = hintFn(it)
+		}
+		comps = append(comps, s+"\t"+hint)
 	}
 	return comps, cobra.ShellCompDirectiveNoFileComp
 }
@@ -175,17 +166,14 @@ func AttachEditCompletion[T any](
 	cmd *cobra.Command,
 	listFn func(ctx context.Context, db *sql.DB) ([]T, error),
 	format func(item T) (int64, string),
+	hintFn func(item T) string,
 ) {
 	cmd.ValidArgsFunction = func(c *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		// Only complete the first positional argument
-		if len(args) > 0 {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		if format == nil {
+		if len(args) > 0 || format == nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		ctx := db.Ctx()
-		return buildIDCompletions(ctx, db.Conn, listFn, format, toComplete, nil)
+		return buildIDCompletions(ctx, db.Conn, listFn, format, toComplete, nil, hintFn)
 	}
 }
 
@@ -193,6 +181,7 @@ func AttachRmCompletion[T any](
 	cmd *cobra.Command,
 	listFn func(ctx context.Context, db *sql.DB) ([]T, error),
 	format func(item T) (int64, string),
+	hintFn func(item T) string,
 ) {
 	cmd.ValidArgsFunction = func(c *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if format == nil {
@@ -204,7 +193,7 @@ func AttachRmCompletion[T any](
 			used[a] = struct{}{}
 		}
 		ctx := db.Ctx()
-		return buildIDCompletions(ctx, db.Conn, listFn, format, toComplete, used)
+		return buildIDCompletions(ctx, db.Conn, listFn, format, toComplete, nil, hintFn)
 	}
 }
 
