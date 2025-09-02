@@ -20,12 +20,12 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"strconv"
 	"strings"
 
-	"database/sql"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -37,9 +37,18 @@ import (
 
 type CrudModel[T any] struct {
 	Singular string
+
+	// Required
 	ListFn   func(ctx context.Context, db *sql.DB) ([]T, error)
-	Format   func(item T) (int64, string)
 	RemoveFn func(ctx context.Context, db *sql.DB, id int64) error
+
+	// Legacy single-line formatting fallback
+	Format func(item T) (int64, string)
+
+	// Optional: rich table output
+	// If both are set, `list` prints a table using these.
+	TableHeaders []string
+	TableRow     func(item T) []string
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -62,6 +71,18 @@ func RegisterCrudSubcommands[T any](
 			if err != nil {
 				log.Fatalf("list %s: %v", desc.Singular, err)
 			}
+
+			if desc.TableHeaders != nil && desc.TableRow != nil {
+				// Render as a table
+				rows := make([][]string, 0, len(items))
+				for _, it := range items {
+					rows = append(rows, desc.TableRow(it))
+				}
+				fmt.Println(RenderTable(desc.TableHeaders, rows))
+				return
+			}
+
+			// Fallback: legacy one-line format
 			for _, it := range items {
 				id, human := desc.Format(it)
 				fmt.Printf("%d\t%s\n", id, human)
@@ -87,7 +108,6 @@ func RegisterCrudSubcommands[T any](
 			fmt.Printf("Removed %s %d\n", desc.Singular, raw)
 		},
 
-		// optional: live completion of IDs
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			ctx := db.Ctx()
 			items, err := desc.ListFn(ctx, db.Conn)
@@ -96,10 +116,12 @@ func RegisterCrudSubcommands[T any](
 			}
 			var comps []string
 			for _, it := range items {
-				id, _ := desc.Format(it)
-				s := strconv.FormatInt(id, 10)
-				if toComplete == "" || strings.HasPrefix(s, toComplete) {
-					comps = append(comps, s)
+				if desc.Format != nil {
+					id, _ := desc.Format(it)
+					s := strconv.FormatInt(id, 10)
+					if toComplete == "" || strings.HasPrefix(s, toComplete) {
+						comps = append(comps, s)
+					}
 				}
 			}
 			return comps, cobra.ShellCompDirectiveNoFileComp
@@ -110,27 +132,82 @@ func RegisterCrudSubcommands[T any](
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-type Field struct {
-	Name     string                    // struct field name
-	Label    string                    // what to show user
-	Initial  string                    // starting value input box
-	Validate func(input string) error  // optional validator executed before Parse
-	err      error                     // internal UI state
-	Parse    func(string) (any, error) // raw string → typed value
-	Assign   func(holder any, v any)   // setter write into model
-	Input    textinput.Model           // the Bubble Tea textinput component
-}
+// RenderTable creates an ASCII table similar to the example you shared.
+func RenderTable(headers []string, rows [][]string) string {
+	// Compute column widths
+	w := make([]int, len(headers))
+	for i, h := range headers {
+		w[i] = len(h)
+	}
+	for _, r := range rows {
+		for i := range headers {
+			if i < len(r) && len(r[i]) > w[i] {
+				w[i] = len(r[i])
+			}
+		}
+	}
 
-// FormModel drives the multi‐field wizard
-type FormModel struct {
-	fields []Field
-	idx    int // which field is active
-	holder any // model instance being modified
+	// Builders
+	var b strings.Builder
+	divider := func() {
+		b.WriteString("+")
+		for i := range headers {
+			b.WriteString(strings.Repeat("-", w[i]+2))
+			b.WriteString("+")
+		}
+		b.WriteString("\n")
+	}
+	writeRow := func(cols []string) {
+		b.WriteString("|")
+		for i := range headers {
+			val := ""
+			if i < len(cols) {
+				val = cols[i]
+			}
+			// pad right
+			b.WriteString(" ")
+			b.WriteString(val)
+			b.WriteString(strings.Repeat(" ", w[i]-len(val)))
+			b.WriteString(" ")
+			b.WriteString("|")
+		}
+		b.WriteString("\n")
+	}
+
+	divider()
+	writeRow(headers)
+	divider()
+	for _, r := range rows {
+		writeRow(r)
+	}
+	divider()
+
+	// Prefix each line with a pipe-like margin if you want to match your example numbering style
+	// Caller can print as-is. We return the clean table string here.
+	return b.String()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// NewFormModel builds wizard over given fields & model holder
+type Field struct {
+	Name     string
+	Label    string
+	Initial  string
+	Validate func(input string) error
+	err      error
+	Parse    func(string) (any, error)
+	Assign   func(holder any, v any)
+	Input    textinput.Model
+}
+
+type FormModel struct {
+	fields []Field
+	idx    int
+	holder any
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 func NewFormModel(fields []Field, holder any) FormModel {
 	for i := range fields {
 		ti := textinput.New()
@@ -159,7 +236,6 @@ func (m FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if key, ok := msg.(tea.KeyMsg); ok && key.String() == "enter" {
 		raw := f.Input.Value()
 
-		// 1) validate first
 		if f.Validate != nil {
 			if err := f.Validate(raw); err != nil {
 				f.err = err
@@ -167,17 +243,14 @@ func (m FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// 2) parse
 		v, err := f.Parse(raw)
 		if err != nil {
 			f.err = err
 			return m, nil
 		}
 
-		// 3) assign
 		f.Assign(m.holder, v)
 
-		// clear error and advance
 		f.err = nil
 		m.idx++
 		if m.idx >= len(m.fields) {
@@ -197,12 +270,10 @@ func (m FormModel) View() string {
 	f := m.fields[m.idx]
 	header := fmt.Sprintf("[%d/%d] %s\n\n", m.idx+1, len(m.fields), f.Label)
 	body := f.Input.View()
-
 	errLine := ""
 	if f.err != nil {
 		errLine = "\n\n! " + f.err.Error()
 	}
-
 	footer := "\n\n(enter to confirm, ctrl+c to cancel)"
 	return header + body + errLine + footer
 }
@@ -216,21 +287,14 @@ func RunFormWizard(fields []Field, holder any) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-func RunFormWizardWithSubmit(
-	fields []Field,
-	holder any,
-	onSubmit func(holder any) error,
-) {
+func RunFormWizardWithSubmit(fields []Field, holder any, onSubmit func(holder any) error) {
 	p := tea.NewProgram(NewFormModel(fields, holder))
 	if _, err := p.StartReturningModel(); err != nil {
 		log.Fatalf("form wizard failed: %v", err)
 	}
-	// once the wizard quits, run your Insert or Update
 	if err := onSubmit(holder); err != nil {
 		log.Fatalf("submit failed: %v", err)
 	}
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
