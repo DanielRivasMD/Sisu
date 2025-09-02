@@ -77,7 +77,7 @@ func runExport(cmd *cobra.Command, args []string) {
 
 		// tasks: target/start are nullable datetimes; tag/description nullable text
 		case "tasks":
-			horus.CheckErr(exportTable[*models.Task, models.TaskSlice](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"tasks.csv",
 				[]string{"id", "name", "tag", "description", "target", "start", "archived"},
@@ -104,7 +104,7 @@ func runExport(cmd *cobra.Command, args []string) {
 
 		// sessions: date nullable, mins/feedback nullable ints, notes nullable text
 		case "sessions":
-			horus.CheckErr(exportTable[*models.Session, models.SessionSlice](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"sessions.csv",
 				[]string{"id", "task", "date", "mins", "feedback", "notes"},
@@ -135,7 +135,7 @@ func runExport(cmd *cobra.Command, args []string) {
 
 		// milestones: done nullable date, value nullable int, type/message nullable text
 		case "milestones":
-			horus.CheckErr(exportTable[*models.Milestone, models.MilestoneSlice](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"milestones.csv",
 				[]string{"id", "task", "type", "value", "done", "message"},
@@ -162,7 +162,7 @@ func runExport(cmd *cobra.Command, args []string) {
 
 		// reviews: week nullable int, summary nullable text
 		case "reviews":
-			horus.CheckErr(exportTable[*models.Review, models.ReviewSlice](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"reviews.csv",
 				[]string{"id", "task", "week", "summary"},
@@ -183,7 +183,7 @@ func runExport(cmd *cobra.Command, args []string) {
 
 		// coach: date nullable
 		case "coach":
-			horus.CheckErr(exportTable[*models.Coach, models.CoachSlice](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"coach.csv",
 				[]string{"id", "trigger", "content", "date"},
@@ -191,7 +191,7 @@ func runExport(cmd *cobra.Command, args []string) {
 				func(c *models.Coach) []string {
 					date := ""
 					if c.Date.Valid {
-						date = c.Date.Time.Format("2006-01-02")
+						date = c.Date.Time.Format(DateYMD)
 					}
 					return []string{
 						strconv.FormatInt(c.ID.Int64, 10),
@@ -204,7 +204,7 @@ func runExport(cmd *cobra.Command, args []string) {
 
 		// calendar: date nullable, note required
 		case "calendar":
-			horus.CheckErr(exportTable[*models.Calendar, models.CalendarSlice](
+			horus.CheckErr(exportTable(
 				ctx, exec,
 				"calendar.csv",
 				[]string{"id", "date", "note"},
