@@ -112,7 +112,7 @@ func runExport(cmd *cobra.Command, args []string) {
 				func(s *models.Session) []string {
 					date := ""
 					if s.Date.Valid {
-						date = s.Date.Time.Format("2006-01-02")
+						date = s.Date.Time.Format(DateYMD)
 					}
 					mins := ""
 					if s.Mins.Valid {
@@ -143,7 +143,7 @@ func runExport(cmd *cobra.Command, args []string) {
 				func(m *models.Milestone) []string {
 					done := ""
 					if m.Done.Valid {
-						done = m.Done.Time.Format("2006-01-02")
+						done = m.Done.Time.Format(DateYMD)
 					}
 					val := ""
 					if m.Value.Valid {
@@ -212,7 +212,7 @@ func runExport(cmd *cobra.Command, args []string) {
 				func(c *models.Calendar) []string {
 					date := ""
 					if c.Date.Valid {
-						date = c.Date.Time.Format("2006-01-02")
+						date = c.Date.Time.Format(DateYMD)
 					}
 					return []string{
 						strconv.FormatInt(c.ID.Int64, 10),

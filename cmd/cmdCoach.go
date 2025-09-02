@@ -143,7 +143,7 @@ func runCoachEdit(_ *cobra.Command, args []string) {
 	fields := []Field{
 		FString("Trigger", "Trigger", entry.Trigger),
 		FString("Content", "Content", entry.Content),
-		FOptDate("Date (YYYY-MM-DD, optional)", "Date", OptTimeInitial(entry.Date, "2006-01-02")),
+		FOptDate("Date (YYYY-MM-DD, optional)", "Date", OptTimeInitial(entry.Date, DateYMD)),
 	}
 
 	RunFormWizard(fields, entry)

@@ -54,7 +54,7 @@ func Execute() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: use constant date format
+// date format
 const DateYMD = "2006-01-02"
 
 var (
@@ -163,7 +163,7 @@ func VDate(label string) func(string) error {
 		if strings.TrimSpace(s) == "" {
 			return fmt.Errorf("%s is required", label)
 		}
-		if _, err := time.Parse("2006-01-02", s); err != nil {
+		if _, err := time.Parse(DateYMD, s); err != nil {
 			return errors.New("date must be YYYY-MM-DD")
 		}
 		return nil
@@ -177,7 +177,7 @@ func VDateOptional() func(string) error {
 		if s == "" {
 			return nil
 		}
-		if _, err := time.Parse("2006-01-02", s); err != nil {
+		if _, err := time.Parse(DateYMD, s); err != nil {
 			return errors.New("date must be YYYY-MM-DD")
 		}
 		return nil
@@ -236,7 +236,7 @@ func ParseOptInt64(s string) (any, error) {
 
 // ParseDate parses a required date (YYYY-MM-DD) into time.Time.
 func ParseDate(s string) (any, error) {
-	return time.Parse("2006-01-02", s)
+	return time.Parse(DateYMD, s)
 }
 
 // ParseOptDate parses an optional date (YYYY-MM-DD) into null.Time.
@@ -245,7 +245,7 @@ func ParseOptDate(s string) (any, error) {
 	if s == "" {
 		return null.Time{}, nil
 	}
-	t, err := time.Parse("2006-01-02", s)
+	t, err := time.Parse(DateYMD, s)
 	if err != nil {
 		return nil, err
 	}

@@ -140,7 +140,7 @@ func runCalendarEdit(_ *cobra.Command, args []string) {
 	}
 
 	fields := []Field{
-		FOptDate("Date (YYYY-MM-DD, optional)", "Date", OptTimeInitial(entry.Date, "2006-01-02")),
+		FOptDate("Date (YYYY-MM-DD, optional)", "Date", OptTimeInitial(entry.Date, DateYMD)),
 		FString("Note", "Note", entry.Note),
 	}
 

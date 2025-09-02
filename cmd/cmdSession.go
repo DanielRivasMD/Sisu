@@ -168,7 +168,7 @@ func runSessionEdit(_ *cobra.Command, args []string) {
 
 	fields := []Field{
 		FInt("Task ID", "Task", strconv.FormatInt(sess.Task, 10)),
-		FOptDate("Session date (YYYY-MM-DD, optional)", "Date", OptTimeInitial(sess.Date, "2006-01-02")),
+		FOptDate("Session date (YYYY-MM-DD, optional)", "Date", OptTimeInitial(sess.Date, DateYMD)),
 		FOptInt("Duration (minutes, optional)", "Mins", OptInt64Initial(sess.Mins)),
 		FOptInt("Score (1–5, optional)", "Feedback", OptInt64Initial(sess.Feedback)),
 		FOptString("Notes (optional)", "Notes", OptStringInitial(sess.Notes)),

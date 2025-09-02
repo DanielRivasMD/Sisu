@@ -165,10 +165,10 @@ func init() {
 		HintFn: func(t *models.Task) string {
 			start, target := "", ""
 			if t.Start.Valid {
-				start = t.Start.Time.Format("2006-01-02")
+				start = t.Start.Time.Format(DateYMD)
 			}
 			if t.Target.Valid {
-				target = t.Target.Time.Format("2006-01-02")
+				target = t.Target.Time.Format(DateYMD)
 			}
 			archived := "0"
 			if t.Archived.Bool {
@@ -189,10 +189,10 @@ func init() {
 		func(t *models.Task) string { // rich hint
 			start, target := "", ""
 			if t.Start.Valid {
-				start = t.Start.Time.Format("2006-01-02")
+				start = t.Start.Time.Format(DateYMD)
 			}
 			if t.Target.Valid {
-				target = t.Target.Time.Format("2006-01-02")
+				target = t.Target.Time.Format(DateYMD)
 			}
 			archived := "0"
 			if t.Archived.Bool {
@@ -214,7 +214,7 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 	var startPicked null.Time
 
 	today := time.Now()
-	todayStr := today.Format("2006-01-02")
+	todayStr := today.Format(DateYMD)
 
 	profileChoice := "default"
 
@@ -286,8 +286,8 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 		FString("Task name", "Name", task.Name),
 		FOptString("Tag (optional)", "Tag", task.Tag.String),
 		FOptString("Description (optional)", "Description", task.Description.String),
-		FOptDate("Start date (YYYY-MM-DD, optional)", "Start", OptTimeInitial(task.Start, "2006-01-02")),
-		FOptDate("Target date (YYYY-MM-DD, optional)", "Target", OptTimeInitial(task.Target, "2006-01-02")),
+		FOptDate("Start date (YYYY-MM-DD, optional)", "Start", OptTimeInitial(task.Start, DateYMD)),
+		FOptDate("Target date (YYYY-MM-DD, optional)", "Target", OptTimeInitial(task.Target, DateYMD)),
 	}
 
 	RunFormWizard(fields, task)
@@ -442,11 +442,11 @@ func taskArchivedValidArgs(cmd *cobra.Command, args []string, toComplete string)
 	hintFn := func(t *models.Task) string {
 		start := ""
 		if t.Start.Valid {
-			start = t.Start.Time.Format("2006-01-02")
+			start = t.Start.Time.Format(DateYMD)
 		}
 		target := ""
 		if t.Target.Valid {
-			target = t.Target.Time.Format("2006-01-02")
+			target = t.Target.Time.Format(DateYMD)
 		}
 		archived := "0"
 		if t.Archived.Bool {
