@@ -145,18 +145,44 @@ func init() {
 			_, err = task.Delete(ctx, conn)
 			return err
 		},
+		HintFn: func(t *models.Task) string {
+			start, target := "", ""
+			if t.Start.Valid {
+				start = t.Start.Time.Format("2006-01-02")
+			}
+			if t.Target.Valid {
+				target = t.Target.Time.Format("2006-01-02")
+			}
+			archived := "0"
+			if t.Archived.Bool {
+				archived = "1"
+			}
+			return fmt.Sprintf("name, %s tag, %s start, %s target, %s archived, %s",
+				t.Name, t.Tag.String, start, target, archived)
+		},
 	})
 
 	AttachEditCompletion(taskEditCmd,
 		func(ctx context.Context, conn *sql.DB) ([]*models.Task, error) {
 			return models.Tasks(qm.OrderBy("id ASC")).All(ctx, conn)
 		},
-		func(t *models.Task) (int64, string) {
-			start := ""
+		func(t *models.Task) (int64, string) { // format fallback (id + simple)
+			return t.ID.Int64, t.Name
+		},
+		func(t *models.Task) string { // rich hint
+			start, target := "", ""
 			if t.Start.Valid {
 				start = t.Start.Time.Format("2006-01-02")
 			}
-			return t.ID.Int64, fmt.Sprintf("name=%s start=%s", t.Name, start)
+			if t.Target.Valid {
+				target = t.Target.Time.Format("2006-01-02")
+			}
+			archived := "0"
+			if t.Archived.Bool {
+				archived = "1"
+			}
+			return fmt.Sprintf("name, %s tag, %s start, %s target, %s archived, %s",
+				t.Name, t.Tag.String, start, target, archived)
 		},
 	)
 
