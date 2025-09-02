@@ -35,6 +35,7 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO: add verbose option
 type CrudModel[T any] struct {
 	Singular     string
 	ListFn       func(ctx context.Context, db *sql.DB) ([]T, error)
@@ -67,7 +68,7 @@ func RegisterCrudSubcommands[T any](
 			}
 
 			if desc.TableHeaders != nil && desc.TableRow != nil {
-				// Render as a table
+				// render as table
 				rows := make([][]string, 0, len(items))
 				for _, it := range items {
 					rows = append(rows, desc.TableRow(it))
@@ -76,7 +77,7 @@ func RegisterCrudSubcommands[T any](
 				return
 			}
 
-			// Fallback: legacy one-line format
+			// fallback: legacy one-line format
 			for _, it := range items {
 				id, human := desc.Format(it)
 				fmt.Printf("%d\t%s\n", id, human)
@@ -127,7 +128,6 @@ func buildIDCompletions[T any](
 	format func(item T) (int64, string),
 	toComplete string,
 	used map[string]struct{},
-	// optional, pass nil if not used
 	hintFn func(item T) string,
 ) ([]string, cobra.ShellCompDirective) {
 	if err := EnsureDB(); err != nil {
@@ -187,7 +187,7 @@ func AttachRmCompletion[T any](
 		if format == nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		// Exclude already-provided IDs
+		// exclude already-provided IDs
 		used := make(map[string]struct{}, len(args))
 		for _, a := range args {
 			used[a] = struct{}{}
@@ -199,9 +199,8 @@ func AttachRmCompletion[T any](
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// RenderTable creates an ASCII table similar to the example you shared.
 func RenderTable(headers []string, rows [][]string) string {
-	// Compute column widths
+	// compute column widths
 	w := make([]int, len(headers))
 	for i, h := range headers {
 		w[i] = len(h)
@@ -214,7 +213,7 @@ func RenderTable(headers []string, rows [][]string) string {
 		}
 	}
 
-	// Builders
+	// builders
 	var b strings.Builder
 	divider := func() {
 		b.WriteString("+")
@@ -249,8 +248,6 @@ func RenderTable(headers []string, rows [][]string) string {
 	}
 	divider()
 
-	// Prefix each line with a pipe-like margin if you want to match your example numbering style
-	// Caller can print as-is. We return the clean table string here.
 	return b.String()
 }
 
