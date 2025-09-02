@@ -52,7 +52,7 @@ var helpTask = formatHelp(
 var helpTaskArchived = formatHelp(
 	"Daniel Rivas",
 	"<danielrivasmd@gmail.com>",
-	"Mark tasks as archived by setting the 'archived' field to true",
+	"Mark tasks as archived or unarchived, or toggle their archived state. Use --on, --off, or --toggle",
 )
 
 var helpMilestone = formatHelp(

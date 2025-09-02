@@ -71,16 +71,27 @@ var taskEditCmd = &cobra.Command{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: refactor archive subcmd as a on / off switch
-// sisu task archive [id ...]
-// Archives one or more tasks by setting archived = true.
+// sisu task archive [--on | --off | --toggle] [id...]
+// - --on:     set archived = true
+// - --off:    set archived = false
+// - --toggle: invert current archived state (default if no flag provided)
 var taskArchiveCmd = &cobra.Command{
-	Use:   "archive [id ...]",
-	Short: "Archive tasks",
-	Long:  helpTaskArchived,
-	Args:  cobra.MinimumNArgs(1),
-	Run:   runTaskArchive,
+	Use:               "archive [id ...]",
+	Short:             "Set or toggle archived state for tasks",
+	Long:              helpTaskArchived,
+	Args:              cobra.MinimumNArgs(1),
+	ValidArgsFunction: taskArchivedValidArgs,
+
+	Run: runTaskArchive,
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+var (
+	flagArchiveOn     bool
+	flagArchiveOff    bool
+	flagArchiveToggle bool
+)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -88,6 +99,11 @@ func init() {
 	rootCmd.AddCommand(taskCmd)
 	taskCmd.AddCommand(taskAddCmd, taskEditCmd)
 	taskCmd.AddCommand(taskArchiveCmd)
+
+	// Flags: mutually exclusive; if none set, default is --toggle
+	taskArchiveCmd.Flags().BoolVar(&flagArchiveOn, "on", false, "set archived = true")
+	taskArchiveCmd.Flags().BoolVar(&flagArchiveOff, "off", false, "set archived = false")
+	taskArchiveCmd.Flags().BoolVar(&flagArchiveToggle, "toggle", false, "toggle archived (default)")
 
 	RegisterCrudSubcommands(taskCmd, "sisu.db", CrudModel[*models.Task]{
 		Singular: "task",
@@ -353,26 +369,105 @@ func seedDefaultTaskProfileWithBase(ctx context.Context, exec boil.ContextExecut
 func runTaskArchive(cmd *cobra.Command, args []string) {
 	ctx := db.Ctx()
 
-	// Iterate all provided IDs
+	// Resolve mode
+	modeToggle := flagArchiveToggle
+	modeOn := flagArchiveOn
+	modeOff := flagArchiveOff
+	if !modeOn && !modeOff && !modeToggle {
+		modeToggle = true // default
+	}
+	// Enforce mutual exclusivity
+	count := 0
+	if modeOn {
+		count++
+	}
+	if modeOff {
+		count++
+	}
+	if modeToggle {
+		count++
+	}
+	if count != 1 {
+		log.Fatalf("use exactly one of: --on, --off, or --toggle")
+	}
+
 	for _, raw := range args {
 		idNum, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil {
 			log.Fatalf("invalid task ID %q: %v", raw, err)
 		}
 
-		// Load the task
 		t, err := models.FindTask(ctx, db.Conn, null.Int64From(idNum))
 		if err != nil {
 			log.Fatalf("find task %d: %v", idNum, err)
 		}
 
-		t.Archived = null.BoolFrom(true)
+		before := t.Archived.Bool
+		switch {
+		case modeOn:
+			t.Archived = null.BoolFrom(true)
+		case modeOff:
+			t.Archived = null.BoolFrom(false)
+		case modeToggle:
+			t.Archived = null.BoolFrom(!before)
+		}
 
 		if _, err := t.Update(ctx, db.Conn, boil.Whitelist("archived")); err != nil {
-			log.Fatalf("archive task %d: %v", idNum, err)
+			log.Fatalf("update archived for task %d: %v", idNum, err)
 		}
-		fmt.Printf("Archived task %d\n", idNum)
+
+		after := t.Archived.Bool
+		state := map[bool]string{false: "unarchived", true: "archived"}[after]
+		if modeToggle {
+			fmt.Printf("Toggled task %d: %v → %v (%s)\n", idNum, before, after, state)
+		} else {
+			fmt.Printf("Set task %d %s\n", idNum, state)
+		}
 	}
+}
+
+func taskArchivedValidArgs(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	// Exclude already provided IDs
+	used := make(map[string]struct{}, len(args))
+	for _, a := range args {
+		used[a] = struct{}{}
+	}
+
+	// Fallback formatter (id + simple hint). Must return (id, fallbackHint).
+	format := func(t *models.Task) (int64, string) {
+		return t.ID.Int64, t.Name
+	}
+
+	// Richer completion hint (preferred when provided).
+	hintFn := func(t *models.Task) string {
+		start := ""
+		if t.Start.Valid {
+			start = t.Start.Time.Format("2006-01-02")
+		}
+		target := ""
+		if t.Target.Valid {
+			target = t.Target.Time.Format("2006-01-02")
+		}
+		archived := "0"
+		if t.Archived.Bool {
+			archived = "1"
+		}
+		return fmt.Sprintf("name, %s tag, %s start, %s target, %s archived, %s",
+			t.Name, t.Tag.String, start, target, archived)
+	}
+
+	ctx := db.Ctx()
+	return buildIDCompletions(
+		ctx,
+		nil, // dbConn is ignored; buildIDCompletions ensures and uses db.Conn
+		func(ctx context.Context, conn *sql.DB) ([]*models.Task, error) {
+			return models.Tasks(qm.OrderBy("id ASC")).All(ctx, conn)
+		},
+		format,
+		toComplete,
+		used,
+		hintFn,
+	)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
