@@ -49,6 +49,12 @@ var helpTask = formatHelp(
 	"Track the high-level routines or goals",
 )
 
+var helpTaskArchived = formatHelp(
+	"Daniel Rivas",
+	"<danielrivasmd@gmail.com>",
+	"Mark tasks as archived by setting the 'archived' field to true",
+)
+
 var helpMilestone = formatHelp(
 	"Daniel Rivas",
 	"<danielrivasmd@gmail.com>",

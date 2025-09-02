@@ -71,9 +71,22 @@ var taskEditCmd = &cobra.Command{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// sisu task archive [id ...]
+// Archives one or more tasks by setting archived = true.
+var taskArchiveCmd = &cobra.Command{
+	Use:   "archive [id ...]",
+	Short: "Archive tasks",
+	Long:  helpTaskArchived,
+	Args:  cobra.MinimumNArgs(1),
+	Run:   runTaskArchive,
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 func init() {
 	rootCmd.AddCommand(taskCmd)
 	taskCmd.AddCommand(taskAddCmd, taskEditCmd)
+	taskCmd.AddCommand(taskArchiveCmd)
 
 	RegisterCrudSubcommands(taskCmd, "sisu.db", CrudModel[*models.Task]{
 		Singular: "task",
@@ -187,7 +200,7 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 		// TODO: update message
 		// target (optional datetime → null.Time) defaults to today + 100 days
 		{
-			Label:    "Target date (YYYY-MM-DD, optional)",
+			Label:    "Target date (YYYY-MM-DD, optional)\nDefault calculated to 100 days from Start date",
 			Initial:  "",
 			Validate: VDateOptional(),
 			Parse: func(s string) (any, error) {
@@ -370,6 +383,33 @@ func seedDefaultTaskProfileWithBase(ctx context.Context, exec boil.ContextExecut
 	}
 
 	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func runTaskArchive(cmd *cobra.Command, args []string) {
+	ctx := db.Ctx()
+
+	// Iterate all provided IDs
+	for _, raw := range args {
+		idNum, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			log.Fatalf("invalid task ID %q: %v", raw, err)
+		}
+
+		// Load the task
+		t, err := models.FindTask(ctx, db.Conn, null.Int64From(idNum))
+		if err != nil {
+			log.Fatalf("find task %d: %v", idNum, err)
+		}
+
+		t.Archived = null.BoolFrom(true)
+
+		if _, err := t.Update(ctx, db.Conn, boil.Whitelist("archived")); err != nil {
+			log.Fatalf("archive task %d: %v", idNum, err)
+		}
+		fmt.Printf("Archived task %d\n", idNum)
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
