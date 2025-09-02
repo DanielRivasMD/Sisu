@@ -96,7 +96,6 @@ func init() {
 		},
 
 		Format: func(t *models.Task) (int64, string) {
-			// optional fields
 			tag := t.Tag.String
 			desc := t.Description.String
 			target := ""
@@ -107,10 +106,35 @@ func init() {
 			if t.Start.Valid {
 				start = t.Start.Time.Format(time.RFC3339)
 			}
-			return t.ID.Int64, fmt.Sprintf(
-				"name=%s tag=%s target=%s start=%s archived=%v desc=%s",
-				t.Name, tag, target, start, t.Archived.Bool, desc,
-			)
+			return t.ID.Int64, fmt.Sprintf("name=%s tag=%s target=%s start=%s archived=%v desc=%s",
+				t.Name, tag, target, start, t.Archived.Bool, desc)
+		},
+
+		// pretty table
+		TableHeaders: []string{"id", "name", "tag", "description", "start", "target", "archived"},
+		TableRow: func(t *models.Task) []string {
+			start := ""
+			if t.Start.Valid {
+				// Your sample shows full timestamp with offset; RFC3339 does that.
+				start = t.Start.Time.Format(time.RFC3339)
+			}
+			target := ""
+			if t.Target.Valid {
+				target = t.Target.Time.Format(time.RFC3339)
+			}
+			archived := "0"
+			if t.Archived.Bool {
+				archived = "1"
+			}
+			return []string{
+				strconv.FormatInt(t.ID.Int64, 10),
+				t.Name,
+				t.Tag.String,
+				t.Description.String,
+				start,
+				target,
+				archived,
+			}
 		},
 
 		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
@@ -197,7 +221,6 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 			},
 		},
 
-		// TODO: update message
 		// target (optional datetime → null.Time) defaults to today + 100 days
 		{
 			Label:    "Target date (YYYY-MM-DD, optional)\nDefault calculated to 100 days from Start date",
@@ -263,6 +286,7 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 			Parse:    ParseNonEmpty("Task name"),
 			Assign:   func(h any, v any) { AssignString("Name", h, v) },
 		},
+
 		// tag (optional)
 		{
 			Label:   "Tag (optional)",
@@ -270,6 +294,7 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 			Parse:   ParseOptString,
 			Assign:  func(h any, v any) { Assign("Tag", h, v) },
 		},
+
 		// description (optional)
 		{
 			Label:   "Description (optional)",
@@ -277,6 +302,7 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 			Parse:   ParseOptString,
 			Assign:  func(h any, v any) { Assign("Description", h, v) },
 		},
+
 		// start (optional datetime)
 		{
 			Label: "Start date (YYYY-MM-DD, optional)",
@@ -290,6 +316,7 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 			Parse:    ParseOptDate,
 			Assign:   func(h any, v any) { Assign("Start", h, v) },
 		},
+
 		// target (optional datetime)
 		{
 			Label: "Target date (YYYY-MM-DD, optional)",
@@ -303,12 +330,6 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 			Parse:    ParseOptDate,
 			Assign:   func(h any, v any) { Assign("Target", h, v) },
 		},
-		// {
-		//  Label:   "Archived (true/false, optional)",
-		//  Initial: strconv.FormatBool(task.Archived.Bool),
-		//  Parse:   ParseBool,
-		//  Assign:  func(h any, v any) { Assign("Archived", h, null.BoolFrom(v.(bool))) },
-		// },
 	}
 
 	RunFormWizard(fields, task)
