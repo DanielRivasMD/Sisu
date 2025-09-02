@@ -138,9 +138,7 @@ func runSessionAdd(_ *cobra.Command, _ []string) {
 	sess := &models.Session{}
 
 	fields := []Field{
-		// required FK
 		FInt("Task ID", "Task", ""),
-		// optional fields matching schema
 		FOptDate("Session date (YYYY-MM-DD, optional)", "Date", ""),
 		FOptInt("Duration (minutes, optional)", "Mins", ""),
 		FOptInt("Score (1–5, optional)", "Feedback", ""),
