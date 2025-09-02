@@ -1,14 +1,11 @@
 - resolve embedding! => `sisu` can only be used now from developer path
 - use error handling => `horus`
 - add filtering options when listing
+- update rm & edit completions on cmds
 
 ==================================================
 cmd/cmdMigrate.go
   line 49     TODO   if successful, run `sqlboiler sqlite3`
-cmd/cmdTask.go
-  line 74     TODO   refactor archive subcmd as a on / off switch
-cmd/root.go
-  line 57     TODO   use constant date format
 cmd/utilCRUD.go
   line 38     TODO   add verbose option
 ==================================================
