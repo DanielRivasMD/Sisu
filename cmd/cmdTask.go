@@ -193,109 +193,57 @@ func init() {
 func runTaskAdd(_ *cobra.Command, _ []string) {
 	task := &models.Task{}
 
-	// capture the chosen Start date (nullable) to drive Target default & seeding
+	// capture Start for computing Target default & profile seeding
 	var startPicked null.Time
 
-	// convenience for showing initial suggestion before user edits Start
 	today := time.Now()
 	todayStr := today.Format("2006-01-02")
 
-	profileChoice := "" // "default" or "custom"
+	profileChoice := "default"
 
 	fields := []Field{
-		// profile choice
-		{
-			Label:    "Profile (default/custom)",
-			Initial:  "default",
-			Validate: VRequired("Profile"),
-			Parse: func(s string) (any, error) {
-				v := strings.ToLower(strings.TrimSpace(s))
-				switch v {
-				case "default", "custom":
-					return v, nil
-				default:
-					return nil, fmt.Errorf("must be 'default' or 'custom'")
-				}
-			},
-			Assign: func(h any, v any) {
-				profileChoice = v.(string)
-			},
-		},
-
-		// name (required)
-		{
-			Label:    "Task name",
-			Initial:  "",
-			Validate: VRequired("Task name"),
-			Parse:    ParseNonEmpty("Task name"),
-			Assign:   func(h any, v any) { AssignString("Name", h, v) },
-		},
-
-		// tag (optional)
-		{
-			Label:   "Tag (optional)",
-			Initial: "",
-			Parse:   ParseOptString,
-			Assign:  func(h any, v any) { Assign("Tag", h, v) },
-		},
-
-		// description (optional)
-		{
-			Label:   "Description (optional)",
-			Initial: "",
-			Parse:   ParseOptString,
-			Assign:  func(h any, v any) { Assign("Description", h, v) },
-		},
-
-		// start (optional datetime → null.Time) defaults to today
-		{
-			Label:    "Start date (YYYY-MM-DD, optional)",
-			Initial:  todayStr,
-			Validate: VDateOptional(),
-			Parse:    ParseOptDate,
-			Assign: func(h any, v any) {
-				// assign to model
+		FChoice("Profile (default/custom)", "default", []string{"default", "custom"},
+			func(v string) { profileChoice = v },
+		),
+		FString("Task name", "Name", ""),
+		FOptString("Tag (optional)", "Tag", ""),
+		FOptString("Description (optional)", "Description", ""),
+		FOptDate("Start date (YYYY-MM-DD, optional)", "Start", "",
+			WithInitial(todayStr),
+			WithValidate(VDateOptional()),
+			WithAssign(func(h any, v any) {
 				Assign("Start", h, v)
-				// keep a copy to compute Target & seed dates
 				startPicked = v.(null.Time)
-			},
-		},
-
-		// target (optional datetime → null.Time) defaults to today + 100 days
-		{
-			Label:    "Target date (YYYY-MM-DD, optional) Default calculated to 100 days from Start date",
-			Initial:  "",
-			Validate: VDateOptional(),
-			Parse: func(s string) (any, error) {
+			}),
+		),
+		FOptDate("Target date (YYYY-MM-DD, optional) Default calculated to 100 days from Start date", "Target", "",
+			WithValidate(VDateOptional()),
+			WithParse(func(s string) (any, error) {
 				s = strings.TrimSpace(s)
 				if s != "" {
 					return ParseOptDate(s)
 				}
-				// user left blank → compute default from Start (or today if Start is empty)
 				base := today
 				if startPicked.Valid {
 					base = startPicked.Time
 				}
 				return null.TimeFrom(base.AddDate(0, 0, 100)), nil
-			},
-			Assign: func(h any, v any) { Assign("Target", h, v) },
-		},
+			}),
+		),
 	}
 
 	RunFormWizard(fields, task)
 
-	// Insert the task
 	if err := task.Insert(context.Background(), db.Conn, boil.Infer()); err != nil {
 		log.Fatalf("insert task: %v", err)
 	}
 	fmt.Printf("Created task %d\n", task.ID.Int64)
 
+	// Seed using Start as base if provided
 	base := today
 	if startPicked.Valid {
 		base = startPicked.Time
 	}
-
-	// If profileChoice is "default", seed related tables
 	if profileChoice == "default" {
 		if err := seedDefaultTaskProfileWithBase(db.Ctx(), db.Conn, task.ID.Int64, base); err != nil {
 			log.Fatalf("seed default profile: %v", err)
@@ -318,58 +266,11 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 	}
 
 	fields := []Field{
-		// name (required)
-		{
-			Label:    "Task name",
-			Initial:  task.Name,
-			Validate: VRequired("Task name"),
-			Parse:    ParseNonEmpty("Task name"),
-			Assign:   func(h any, v any) { AssignString("Name", h, v) },
-		},
-
-		// tag (optional)
-		{
-			Label:   "Tag (optional)",
-			Initial: task.Tag.String,
-			Parse:   ParseOptString,
-			Assign:  func(h any, v any) { Assign("Tag", h, v) },
-		},
-
-		// description (optional)
-		{
-			Label:   "Description (optional)",
-			Initial: task.Description.String,
-			Parse:   ParseOptString,
-			Assign:  func(h any, v any) { Assign("Description", h, v) },
-		},
-
-		// start (optional datetime)
-		{
-			Label: "Start date (YYYY-MM-DD, optional)",
-			Initial: func() string {
-				if task.Start.Valid {
-					return task.Start.Time.Format("2006-01-02")
-				}
-				return ""
-			}(),
-			Validate: VDateOptional(),
-			Parse:    ParseOptDate,
-			Assign:   func(h any, v any) { Assign("Start", h, v) },
-		},
-
-		// target (optional datetime)
-		{
-			Label: "Target date (YYYY-MM-DD, optional)",
-			Initial: func() string {
-				if task.Target.Valid {
-					return task.Target.Time.Format("2006-01-02")
-				}
-				return ""
-			}(),
-			Validate: VDateOptional(),
-			Parse:    ParseOptDate,
-			Assign:   func(h any, v any) { Assign("Target", h, v) },
-		},
+		FString("Task name", "Name", task.Name),
+		FOptString("Tag (optional)", "Tag", task.Tag.String),
+		FOptString("Description (optional)", "Description", task.Description.String),
+		FOptDate("Start date (YYYY-MM-DD, optional)", "Start", OptTimeInitial(task.Start, "2006-01-02")),
+		FOptDate("Target date (YYYY-MM-DD, optional)", "Target", OptTimeInitial(task.Target, "2006-01-02")),
 	}
 
 	RunFormWizard(fields, task)
