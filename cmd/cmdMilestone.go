@@ -73,8 +73,6 @@ func init() {
 	rootCmd.AddCommand(milestoneCmd)
 	milestoneCmd.AddCommand(milestoneAddCmd, milestoneEditCmd)
 
-	// cmd/cmdMilestone.go (inside init(): RegisterCrudSubcommands for milestones)
-
 	RegisterCrudSubcommands(milestoneCmd, "sisu.db", CrudModel[*models.Milestone]{
 		Singular: "milestone",
 
@@ -132,9 +130,7 @@ func runMilestoneAdd(_ *cobra.Command, _ []string) {
 	m := &models.Milestone{}
 
 	fields := []Field{
-		// required task FK
 		FInt("Task ID", "Task", ""),
-		// optional fields
 		FOptString("Type (optional)", "Type", ""),
 		FOptInt("Value (optional)", "Value", ""),
 		FOptDate("Done date (YYYY-MM-DD, optional)", "Done", ""),
