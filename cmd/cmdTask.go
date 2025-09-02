@@ -146,6 +146,20 @@ func init() {
 			return err
 		},
 	})
+
+	AttachEditCompletion(taskEditCmd,
+		func(ctx context.Context, conn *sql.DB) ([]*models.Task, error) {
+			return models.Tasks(qm.OrderBy("id ASC")).All(ctx, conn)
+		},
+		func(t *models.Task) (int64, string) {
+			start := ""
+			if t.Start.Valid {
+				start = t.Start.Time.Format("2006-01-02")
+			}
+			return t.ID.Int64, fmt.Sprintf("name=%s start=%s", t.Name, start)
+		},
+	)
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
