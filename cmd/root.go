@@ -80,14 +80,13 @@ func persistentPostRun(cmd *cobra.Command, args []string) {
 	}
 }
 
-// EnsureDB opens the DB using the same path/logic as PersistentPreRun.
-// PersistentPreRun calls: db.InitDB(dbPath)
-// We reuse that here so __complete has a live connection.
+// EnsureDB open the DB using the same logic as PersistentPreRun
+// reuse that here so __complete has a live connection
 func EnsureDB() error {
 	if db.Conn != nil {
 		return nil
 	}
-	_, err := db.InitDB(dbPath) // dbPath should be the same package-level var used in persistentPreRun
+	_, err := db.InitDB(dbPath)
 	return err
 }
 
