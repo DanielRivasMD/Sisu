@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/aarondl/null/v8"
 	"github.com/aarondl/sqlboiler/v4/boil"
@@ -65,6 +66,8 @@ func init() {
 	rootCmd.AddCommand(calendarCmd)
 	calendarCmd.AddCommand(calendarAddCmd, calendarEditCmd)
 
+	// cmd/cmdCalendar.go (inside init(): RegisterCrudSubcommands for calendar)
+
 	RegisterCrudSubcommands(calendarCmd, "sisu.db", CrudModel[*models.Calendar]{
 		Singular: "calendar",
 
@@ -75,17 +78,30 @@ func init() {
 		Format: func(c *models.Calendar) (int64, string) {
 			date := ""
 			if c.Date.Valid {
-				date = c.Date.Time.Format("2006-01-02")
+				date = c.Date.Time.Format(time.RFC3339)
 			}
 			return c.ID.Int64, fmt.Sprintf("date=%s note=%s", date, c.Note)
 		},
 
+		TableHeaders: []string{"id", "date", "note"},
+		TableRow: func(c *models.Calendar) []string {
+			date := ""
+			if c.Date.Valid {
+				date = c.Date.Time.Format(time.RFC3339)
+			}
+			return []string{
+				strconv.FormatInt(c.ID.Int64, 10),
+				date,
+				c.Note,
+			}
+		},
+
 		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
-			cal, err := models.FindCalendar(ctx, conn, null.Int64From(id))
+			row, err := models.FindCalendar(ctx, conn, null.Int64From(id))
 			if err != nil {
 				return err
 			}
-			_, err = cal.Delete(ctx, conn)
+			_, err = row.Delete(ctx, conn)
 			return err
 		},
 	})
