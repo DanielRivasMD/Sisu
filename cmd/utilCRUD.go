@@ -346,16 +346,14 @@ func (m FormModel) View() string {
 
 func RunFormWizard(fields []Field, holder any) {
 	p := tea.NewProgram(NewFormModel(fields, holder))
-	if _, err := p.StartReturningModel(); err != nil {
+	if _, err := p.Run(); err != nil {
 		log.Fatalf("form wizard failed: %v", err)
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 func RunFormWizardWithSubmit(fields []Field, holder any, onSubmit func(holder any) error) {
 	p := tea.NewProgram(NewFormModel(fields, holder))
-	if _, err := p.StartReturningModel(); err != nil {
+	if _, err := p.Run(); err != nil {
 		log.Fatalf("form wizard failed: %v", err)
 	}
 	if err := onSubmit(holder); err != nil {
