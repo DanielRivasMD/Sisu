@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/aarondl/null/v8"
 	"github.com/aarondl/sqlboiler/v4/boil"
@@ -72,6 +73,8 @@ func init() {
 	rootCmd.AddCommand(milestoneCmd)
 	milestoneCmd.AddCommand(milestoneAddCmd, milestoneEditCmd)
 
+	// cmd/cmdMilestone.go (inside init(): RegisterCrudSubcommands for milestones)
+
 	RegisterCrudSubcommands(milestoneCmd, "sisu.db", CrudModel[*models.Milestone]{
 		Singular: "milestone",
 
@@ -80,18 +83,36 @@ func init() {
 		},
 
 		Format: func(m *models.Milestone) (int64, string) {
+			done := ""
+			if m.Done.Valid {
+				done = m.Done.Time.Format(time.RFC3339)
+			}
 			val := ""
 			if m.Value.Valid {
 				val = strconv.FormatInt(m.Value.Int64, 10)
 			}
+			return m.ID.Int64, fmt.Sprintf("task=%d type=%s value=%s done=%s msg=%s",
+				m.Task, m.Type.String, val, done, m.Message.String)
+		},
+
+		TableHeaders: []string{"id", "task", "type", "value", "done", "message"},
+		TableRow: func(m *models.Milestone) []string {
 			done := ""
 			if m.Done.Valid {
-				done = m.Done.Time.Format("2006-01-02")
+				done = m.Done.Time.Format(time.RFC3339)
 			}
-			return m.ID.Int64, fmt.Sprintf(
-				"task=%d type=%s value=%s done=%s msg=%s",
-				m.Task, m.Type.String, val, done, m.Message.String,
-			)
+			val := ""
+			if m.Value.Valid {
+				val = strconv.FormatInt(m.Value.Int64, 10)
+			}
+			return []string{
+				strconv.FormatInt(m.ID.Int64, 10),
+				strconv.FormatInt(m.Task, 10),
+				m.Type.String,
+				val,
+				done,
+				m.Message.String,
+			}
 		},
 
 		RemoveFn: func(ctx context.Context, conn *sql.DB, id int64) error {
