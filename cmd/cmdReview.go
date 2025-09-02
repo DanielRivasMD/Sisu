@@ -23,7 +23,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"reflect"
 	"strconv"
 
 	"github.com/aarondl/null/v8"
@@ -108,52 +107,9 @@ func runReviewAdd(_ *cobra.Command, _ []string) {
 	rev := &models.Review{}
 
 	fields := []Field{
-		{
-			Label:   "Task ID",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				return strconv.ParseInt(s, 10, 64)
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Task").
-					SetInt(v.(int64))
-			},
-		},
-		{
-			Label:   "Week (optional)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return null.Int64{}, nil
-				}
-				w, err := strconv.ParseInt(s, 10, 64)
-				if err != nil {
-					return nil, err
-				}
-				return null.Int64From(w), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Week").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Summary (optional)",
-			Initial: "",
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Summary").
-					Set(reflect.ValueOf(v))
-			},
-		},
+		FInt("Task ID", "Task", ""),
+		FOptInt("Week (optional)", "Week", ""),
+		FOptString("Summary (optional)", "Summary", ""),
 	}
 
 	RunFormWizard(fields, rev)
@@ -173,64 +129,15 @@ func runReviewEdit(_ *cobra.Command, args []string) {
 		log.Fatalf("invalid review ID %q: %v", rawID, err)
 	}
 
-	// fetch the existing record
 	rev, err := models.FindReview(context.Background(), db.Conn, null.Int64From(idNum))
 	if err != nil {
 		log.Fatalf("find review %d: %v", idNum, err)
 	}
 
 	fields := []Field{
-		{
-			Label:   "Task ID",
-			Initial: strconv.FormatInt(rev.Task, 10),
-			Parse: func(s string) (any, error) {
-				return strconv.ParseInt(s, 10, 64)
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Task").
-					SetInt(v.(int64))
-			},
-		},
-		{
-			Label: "Week (optional)",
-			Initial: func() string {
-				if rev.Week.Valid {
-					return strconv.FormatInt(rev.Week.Int64, 10)
-				}
-				return ""
-			}(),
-			Parse: func(s string) (any, error) {
-				if s == "" {
-					return null.Int64{}, nil
-				}
-				w, err := strconv.ParseInt(s, 10, 64)
-				if err != nil {
-					return nil, err
-				}
-				return null.Int64From(w), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Week").
-					Set(reflect.ValueOf(v))
-			},
-		},
-		{
-			Label:   "Summary (optional)",
-			Initial: rev.Summary.String,
-			Parse: func(s string) (any, error) {
-				return null.StringFrom(s), nil
-			},
-			Assign: func(holder any, v any) {
-				reflect.ValueOf(holder).
-					Elem().
-					FieldByName("Summary").
-					Set(reflect.ValueOf(v))
-			},
-		},
+		FInt("Task ID", "Task", strconv.FormatInt(rev.Task, 10)),
+		FOptInt("Week (optional)", "Week", OptInt64Initial(rev.Week)),
+		FOptString("Summary (optional)", "Summary", rev.Summary.String),
 	}
 
 	RunFormWizard(fields, rev)
