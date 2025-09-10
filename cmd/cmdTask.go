@@ -52,8 +52,8 @@ var taskCmd = &cobra.Command{
 	Short:             "Manage tasks",
 	Long:              helpTask,
 	Example:           exampleTask,
-	PersistentPreRun:  persistentPreRun,
-	PersistentPostRun: persistentPostRun,
+	PersistentPreRun:  dbPreRun,
+	PersistentPostRun: dbPostRun,
 }
 
 var taskAddCmd = &cobra.Command{

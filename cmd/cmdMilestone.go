@@ -50,8 +50,8 @@ var milestoneCmd = &cobra.Command{
 	Short:             "Manage milestones",
 	Long:              helpMilestone,
 	Example:           exampleMilestone,
-	PersistentPreRun:  persistentPreRun,
-	PersistentPostRun: persistentPostRun,
+	PersistentPreRun:  dbPreRun,
+	PersistentPostRun: dbPostRun,
 }
 
 var milestoneAddCmd = &cobra.Command{

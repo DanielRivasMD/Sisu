@@ -43,8 +43,8 @@ var exportCmd = &cobra.Command{
 	Short:             "Export one or more tables to CSV files",
 	Long:              helpExport,
 	Example:           exampleExport,
-	PersistentPreRun:  persistentPreRun,
-	PersistentPostRun: persistentPostRun,
+	PersistentPreRun:  dbPreRun,
+	PersistentPostRun: dbPostRun,
 	Args:              cobra.ArbitraryArgs,
 	Run:               runExport,
 }

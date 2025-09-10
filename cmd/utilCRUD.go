@@ -53,8 +53,8 @@ func RegisterCrudSubcommands[T any](
 	dbPath string,
 	desc CrudModel[T],
 ) {
-	parent.PersistentPreRun = persistentPreRun
-	parent.PersistentPostRun = persistentPostRun
+	parent.PersistentPreRun = dbPreRun
+	parent.PersistentPostRun = dbPostRun
 
 	// list
 	list := &cobra.Command{

@@ -48,8 +48,8 @@ import (
 var sessionCmd = &cobra.Command{
 	Use:               "session",
 	Short:             "Manage work sessions",
-	PersistentPreRun:  persistentPreRun,
-	PersistentPostRun: persistentPostRun,
+	PersistentPreRun:  dbPreRun,
+	PersistentPostRun: dbPostRun,
 }
 
 var sessionAddCmd = &cobra.Command{

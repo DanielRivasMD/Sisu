@@ -71,20 +71,21 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-func persistentPreRun(cmd *cobra.Command, args []string) {
+func dbPreRun(cmd *cobra.Command, args []string) {
 	if _, err := db.InitDB(dbPath); err != nil {
 		log.Fatalf("init DB: %v", err)
 	}
 }
 
-func persistentPostRun(cmd *cobra.Command, args []string) {
+func dbPostRun(cmd *cobra.Command, args []string) {
 	if db.Conn != nil {
 		_ = db.Conn.Close()
 		db.Conn = nil
 	}
 }
 
-// EnsureDB open the DB using the same logic as PersistentPreRun
+// TODO: needed ensuredb?
+// EnsureDB open the DB using the same logic as dbPreRun
 // reuse that here so __complete has a live connection
 func EnsureDB() error {
 	if db.Conn != nil {
