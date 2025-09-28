@@ -300,6 +300,7 @@ func runTaskEdit(_ *cobra.Command, args []string) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO: update defaults; probably load from toml
 // seedDefaultTaskProfile seeds milestones, reviews, and coach defaults for a task.
 func seedDefaultTaskProfileWithBase(ctx context.Context, exec boil.ContextExecutor, taskID int64, base time.Time) error {
 	// Helpers for dates

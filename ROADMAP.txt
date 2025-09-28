@@ -10,6 +10,10 @@ cmd/cmdMigrate.go
 cmd/cmdSession.go
   line 137    TODO   add default date today
   line 138    TODO   add menu selector for tasks?
+cmd/cmdTask.go
+  line 303    TODO   update defaults; probably load from toml
+cmd/root.go
+  line 89     TODO   needed ensuredb?
 cmd/utilCRUD.go
   line 38     TODO   add verbose option
 ==================================================
