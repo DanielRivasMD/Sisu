@@ -92,12 +92,12 @@ func init() {
 			if s.Feedback.Valid {
 				fb = strconv.FormatInt(s.Feedback.Int64, 10)
 			}
-			return s.ID.Int64, fmt.Sprintf("task=%d date=%s mins=%s feedback=%s notes=%s",
-				s.Task, date, mins, fb, s.Notes.String)
+			return s.ID.Int64, fmt.Sprintf("task=%d class=%s date=%s mins=%s feedback=%s notes=%s",
+				s.Task, s.Class.String, date, mins, fb, s.Notes.String)
 		},
 
 		// Pretty table
-		TableHeaders: []string{"id", "task", "date", "mins", "feedback", "notes"},
+		TableHeaders: []string{"id", "task", "class", "date", "mins", "feedback", "notes"},
 		TableRow: func(s *models.Session) []string {
 			date := ""
 			if s.Date.Valid {
@@ -114,6 +114,7 @@ func init() {
 			return []string{
 				strconv.FormatInt(s.ID.Int64, 10),
 				strconv.FormatInt(s.Task, 10),
+				s.Class.String,
 				date,
 				mins,
 				fb,
@@ -141,6 +142,7 @@ func runSessionAdd(_ *cobra.Command, _ []string) {
 
 	fields := []Field{
 		FInt("Task ID", "Task", ""),
+		FOptString("Class (optional)", "Class", ""), // <── new
 		FOptDate("Session date (YYYY-MM-DD, optional)", "Date", ""),
 		FOptInt("Duration (minutes, optional)", "Mins", ""),
 		FOptInt("Score (1–5, optional)", "Feedback", ""),
@@ -170,6 +172,7 @@ func runSessionEdit(_ *cobra.Command, args []string) {
 
 	fields := []Field{
 		FInt("Task ID", "Task", strconv.FormatInt(sess.Task, 10)),
+		FOptString("Class (optional)", "Class", OptStringInitial(sess.Class)), // <── new
 		FOptDate("Session date (YYYY-MM-DD, optional)", "Date", OptTimeInitial(sess.Date, DateYMD)),
 		FOptInt("Duration (minutes, optional)", "Mins", OptInt64Initial(sess.Mins)),
 		FOptInt("Score (1–5, optional)", "Feedback", OptInt64Initial(sess.Feedback)),

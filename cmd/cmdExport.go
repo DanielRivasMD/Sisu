@@ -102,12 +102,12 @@ func runExport(cmd *cobra.Command, args []string) {
 				},
 			))
 
-		// sessions: date nullable, mins/feedback nullable ints, notes nullable text
+		// sessions: class nullable text, date nullable, mins/feedback nullable ints, notes nullable text
 		case "sessions":
 			horus.CheckErr(exportTable(
 				ctx, exec,
 				"sessions.csv",
-				[]string{"id", "task", "date", "mins", "feedback", "notes"},
+				[]string{"id", "task", "class", "date", "mins", "feedback", "notes"},
 				models.Sessions(qm.OrderBy("id ASC")).All,
 				func(s *models.Session) []string {
 					date := ""
@@ -125,6 +125,7 @@ func runExport(cmd *cobra.Command, args []string) {
 					return []string{
 						strconv.FormatInt(s.ID.Int64, 10),
 						strconv.FormatInt(s.Task, 10),
+						s.Class.String, // new field
 						date,
 						mins,
 						fb,
