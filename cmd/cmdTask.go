@@ -257,14 +257,14 @@ func runTaskAdd(_ *cobra.Command, _ []string) {
 	fmt.Printf("Created task %d\n", task.ID.Int64)
 
 	// Seed using Start as base if provided
-	base := today
-	if startPicked.Valid {
-		base = startPicked.Time
-	}
+	// base := today
+	// if startPicked.Valid {
+	// 	base = startPicked.Time
+	// }
 	if profileChoice == "default" {
-		if err := seedDefaultTaskProfileWithBase(db.Ctx(), db.Conn, task.ID.Int64, base); err != nil {
-			log.Fatalf("seed default profile: %v", err)
-		}
+		// if err := seedDefaultTaskProfileWithBase(db.Ctx(), db.Conn, task.ID.Int64, base); err != nil {
+		// 	log.Fatalf("seed default profile: %v", err)
+		// }
 		fmt.Println("Applied default profile (milestones, reviews, coach).")
 	}
 }
